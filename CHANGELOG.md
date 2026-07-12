@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.3] - 2026-07-12
+
+### Fixed
+
+- Improved microphone reliability in Chrome on iPhone.
+- The second microphone tap now immediately posts the latest captured words.
+- Interim iOS transcript text is preserved even when no final event arrives.
+- Prevented delayed onend callbacks from posting the same message twice.
+- Increased the non-Android microphone startup watchdog to five seconds.
+- Added a visual captured-text state while words are available to post.
+
 ## [0.14.2] - 2026-07-12
 
 ### Fixed
