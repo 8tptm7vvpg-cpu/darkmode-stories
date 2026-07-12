@@ -1470,3 +1470,78 @@ body{
     0 0 18px rgba(255,228,92,.38),
     0 0 28px rgba(255,61,187,.18);
 }
+
+
+/* =============================================================
+   VERSION 14 — SPEECH POSTING, STACKING, INSTRUCTIONS
+   ============================================================= */
+.intro-version{
+  position:absolute;
+  left:50%;
+  bottom:max(18px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  font-size:clamp(.62rem,2.2vw,.82rem);
+  font-weight:800;
+  letter-spacing:.2em;
+  color:rgba(216,220,234,.62);
+  white-space:nowrap;
+  opacity:0;
+  animation:fadeUp .5s 4.35s forwards;
+}
+.hint{
+  width:min(91%,560px);
+  padding:20px 18px;
+  font-size:clamp(.96rem,3.8vw,1.25rem);
+  line-height:1.62;
+}
+.hint strong{
+  display:inline-block;
+  margin-bottom:5px;
+  font-size:1.18em;
+  color:#fff;
+  text-shadow:
+    0 0 12px rgba(0,234,255,.42),
+    0 0 18px rgba(255,61,187,.26);
+}
+.speech-fallback-compose{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 66px;
+  gap:10px;
+  align-items:stretch;
+}
+.speech-fallback-input{
+  min-width:0;
+}
+.speech-fallback-send{
+  min-width:66px;
+  border-radius:20px;
+  border:3px solid transparent;
+  background:
+    linear-gradient(#0b101b,#0b101b) padding-box,
+    linear-gradient(
+      145deg,
+      var(--cyan),
+      var(--purple),
+      var(--pink),
+      var(--yellow)
+    ) border-box;
+  color:#fff;
+  font-size:2rem;
+  font-weight:1000;
+  box-shadow:
+    0 0 18px rgba(0,234,255,.22),
+    0 0 26px rgba(255,61,187,.14);
+}
+.speech-fallback-cancel{
+  width:100%;
+  min-height:44px;
+  margin-top:9px;
+  border-radius:15px;
+  border:2px solid #303950;
+  background:#101522;
+  color:#cbd2e3;
+  font-weight:900;
+}
+.message{
+  margin:0;
+}
