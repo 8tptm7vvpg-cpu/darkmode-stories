@@ -283,7 +283,12 @@
       const value = nativeEmojiInput.value.trim();
 
       if(value){
-        addSticker(value);
+        if(/[\p{L}\p{N}]/u.test(value)){
+          addMessage(value);
+        }else{
+          addSticker(value);
+        }
+
         nativeEmojiInput.value = '';
         closeLibraries();
         nativeEmojiInput.blur();
@@ -326,11 +331,11 @@
       lockBtn.textContent = drawModeActive ? '🔒' : '🔓';
       lockBtn.classList.toggle('locked', drawModeActive);
 
-      modeBadge.textContent = drawModeActive ? 'Draw Mode' : 'Move Canvas';
+      modeBadge.textContent = drawModeActive ? 'Draw Mode' : 'Move Storyboard';
 
       hint.innerHTML = drawModeActive
         ? 'Drag your finger to paint with the black brush.'
-        : 'Drag to move around the larger colorful Story Canvas.';
+        : 'Drag to move around the larger colorful Storyboard.';
     }
 
     lockBtn.onclick = event => {
@@ -495,6 +500,8 @@
       const element = document.createElement('div');
       element.className = 'sticker';
       element.textContent = symbol;
+      element.dataset.readableText =
+        /[\p{L}\p{N}]/u.test(symbol) ? symbol : '';
 
       element.style.left = (800 + (-artX) + Math.random() * 80 - 40) + 'px';
       element.style.top = (600 + (-artY) + Math.random() * 80 - 40) + 'px';
@@ -594,53 +601,56 @@
       const element = document.createElement('div');
       element.className = 'message message-arrival';
       element.textContent = cleanText;
+      element.dataset.readableText = cleanText;
 
-      /* Convert a point inside the visible viewport into artboard
-         coordinates so each new bubble is immediately on-screen. */
-      const viewportRect = viewport.getBoundingClientRect();
-      const artboardRect = artboard.getBoundingClientRect();
+      const previousMessages = [
+        ...contentLayer.querySelectorAll('.message')
+      ];
 
-      const visibleAnchorX =
-        viewportRect.left + viewportRect.width * .5;
+      if(previousMessages.length){
+        const previous = previousMessages[previousMessages.length - 1];
+        const previousX = parseFloat(previous.style.left) || 24;
+        const previousY = parseFloat(previous.style.top) || 24;
+        const gap = 26;
 
-      const visibleAnchorY =
-        viewportRect.top + viewportRect.height * .38;
+        let messageX = previousX;
+        let messageY =
+          previousY +
+          Math.max(previous.offsetHeight, 118) +
+          gap;
 
-      const artboardScaleX = 1600 / artboardRect.width;
-      const artboardScaleY = 1200 / artboardRect.height;
+        if(messageY > 1000){
+          messageX = Math.min(previousX + 660, 940);
+          messageY = 150;
+        }
 
-      let messageX =
-        (visibleAnchorX - artboardRect.left) * artboardScaleX;
+        element.style.left = messageX + 'px';
+        element.style.top = messageY + 'px';
+      }else{
+        const viewportRect = viewport.getBoundingClientRect();
+        const artboardRect = artboard.getBoundingClientRect();
 
-      let messageY =
-        (visibleAnchorY - artboardRect.top) * artboardScaleY;
+        const visibleAnchorX =
+          viewportRect.left + viewportRect.width * .5;
 
-      /* Alternate bubbles slightly left and right and stack them
-         downward without placing them outside the visible area. */
-      const horizontalOffset =
-        messageCount % 2 === 0 ? -120 : 10;
+        const visibleAnchorY =
+          viewportRect.top + viewportRect.height * .3;
 
-      const verticalOffset =
-        (messageCount % 4) * 38;
+        const scaleX = 1600 / artboardRect.width;
+        const scaleY = 1200 / artboardRect.height;
 
-      messageX += horizontalOffset;
-      messageY += verticalOffset;
+        let messageX =
+          (visibleAnchorX - artboardRect.left) * scaleX - 290;
 
-      const estimatedWidth = 620;
-      const estimatedHeight = 150;
+        let messageY =
+          (visibleAnchorY - artboardRect.top) * scaleY;
 
-      messageX = Math.max(
-        24,
-        Math.min(messageX, 1600 - estimatedWidth - 24)
-      );
+        messageX = Math.max(24, Math.min(messageX, 940));
+        messageY = Math.max(24, Math.min(messageY, 980));
 
-      messageY = Math.max(
-        24,
-        Math.min(messageY, 1200 - estimatedHeight - 24)
-      );
-
-      element.style.left = messageX + 'px';
-      element.style.top = messageY + 'px';
+        element.style.left = messageX + 'px';
+        element.style.top = messageY + 'px';
+      }
 
       contentLayer.appendChild(element);
       makeDraggable(element);
@@ -750,6 +760,36 @@
       lastCommittedTranscript = normalized;
       addMessage(cleanText);
       return true;
+    }
+
+    function stopAllSpeechActivity(options = {}){
+      const {
+        preserveFallbackText = false,
+        hidePanels = true
+      } = options;
+
+      if(recognition && (listening || recognitionStarting)){
+        stopRecognitionSession(true);
+      }
+
+      resetMicVisualState();
+      micBtn.classList.remove('unsupported');
+
+      if('speechSynthesis' in window){
+        speechSynthesis.cancel();
+      }
+
+      if(!preserveFallbackText){
+        speechFallbackInput.value = '';
+      }
+
+      speechFallbackInput.blur();
+      nativeEmojiInput.blur();
+
+      if(hidePanels){
+        speechFallback.classList.remove('show');
+        dictation.classList.remove('show');
+      }
     }
 
     function stopRecognitionSession(useAbort = false){
@@ -882,6 +922,26 @@
       micBtn.classList.add('unsupported');
     }
 
+    document.addEventListener('click', event => {
+      const clickedButton = event.target.closest('button');
+
+      if(!clickedButton || clickedButton === micBtn){
+        return;
+      }
+
+      if(
+        clickedButton === speechFallbackAdd ||
+        clickedButton === speechFallbackCancel
+      ){
+        return;
+      }
+
+      stopAllSpeechActivity({
+        preserveFallbackText:false,
+        hidePanels:true
+      });
+    }, true);
+
     micBtn.onclick = event => {
       closeLibraries();
       animateButton(event.currentTarget);
@@ -940,7 +1000,8 @@
     speechFallbackAdd.onclick = event => {
       const fallbackText = speechFallbackInput.value.trim();
 
-      if(commitRecognitionText(fallbackText)){
+      if(fallbackText){
+        addMessage(fallbackText);
         animateButton(event.currentTarget);
         closeSpeechFallback();
       }else{
@@ -957,12 +1018,42 @@
        Reads all message bubbles in their current page order.
        ========================================================= */
     document.getElementById('readBtn').onclick = event => {
+      stopAllSpeechActivity({
+        preserveFallbackText:false,
+        hidePanels:true
+      });
+
       const readButton = event.currentTarget;
-      const storyText = [
-        ...contentLayer.querySelectorAll('.message')
+
+      const readableItems = [
+        ...contentLayer.querySelectorAll(
+          '.message, .sticker[data-readable-text]'
+        )
       ]
-      .map(element => element.textContent)
-      .join('. ');
+      .filter(element =>
+        (element.dataset.readableText || element.textContent).trim()
+      )
+      .sort((first, second) => {
+        const firstTop = parseFloat(first.style.top) || 0;
+        const secondTop = parseFloat(second.style.top) || 0;
+
+        if(Math.abs(firstTop - secondTop) > 8){
+          return firstTop - secondTop;
+        }
+
+        return
+          (parseFloat(first.style.left) || 0) -
+          (parseFloat(second.style.left) || 0);
+      });
+
+      const storyText = readableItems
+        .map(element =>
+          (
+            element.dataset.readableText ||
+            element.textContent
+          ).trim()
+        )
+        .join('. ');
 
       if(!storyText){
         animateButton(readButton, 'warning');
@@ -982,6 +1073,16 @@
         utterance.onend = () => {
           readButton.classList.remove('dm-reading');
         };
+
+        utterance.onerror = () => {
+          readButton.classList.remove('dm-reading');
+        };
+
+        speechSynthesis.speak(utterance);
+      }else{
+        readButton.classList.remove('dm-reading');
+      }
+    };
 
         utterance.onerror = () => {
           readButton.classList.remove('dm-reading');
