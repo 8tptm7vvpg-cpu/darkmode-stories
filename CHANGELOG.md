@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.14.2] - 2026-07-12
+
+### Fixed
+
+- Replaced a fragile multi-line HTML string in the sticker fallback.
+- Prevented Chrome from failing to parse the entire JavaScript file.
+- Restored all button and interaction handlers.
+- Added a JavaScript boot marker and runtime error logging.
+
 ## [0.14.1] - 2026-07-12
 
 ### Fixed

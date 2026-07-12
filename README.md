@@ -1,6 +1,6 @@
 # DARKMODE STORIES
 
-**Current version:** `0.14.1`
+**Current version:** `0.14.2`
 
 DARKMODE STORIES is a child-friendly creative storytelling experience built around speech-to-text, draggable story elements, drawing, original stickers, native device emoji input, parallax, and JPG export.
 
