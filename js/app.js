@@ -659,7 +659,7 @@
         const scaleY = 1200 / artboardRect.height;
 
         let messageX =
-          (visibleAnchorX - artboardRect.left) * scaleX - 290;
+          (visibleAnchorX - artboardRect.left) * scaleX - 220;
 
         let messageY =
           (visibleAnchorY - artboardRect.top) * scaleY;
@@ -721,21 +721,6 @@
     let lastCommittedTranscript = '';
     let recognitionWatchdog = null;
     let resultCommitted = false;
-    let liveTranscriptDraft = '';
-    let speechSessionId = 0;
-    let endingSessionId = 0;
-
-    function setLiveTranscript(text){
-      liveTranscriptDraft = (text || '').trim();
-
-      liveText.textContent =
-        liveTranscriptDraft || 'Start talking...';
-
-      dictation.classList.toggle(
-        'has-speech',
-        Boolean(liveTranscriptDraft)
-      );
-    }
 
     function normalizeTranscript(text){
       return text
@@ -754,7 +739,6 @@
 
       micBtn.classList.remove('listening');
       micBtn.textContent = '🎤';
-      dictation.classList.remove('has-speech');
     }
 
     function closeSpeechFallback(){
@@ -781,30 +765,21 @@
     }
 
     function commitRecognitionText(text){
-      const cleanText = (text || '').trim();
+      const cleanText = text.trim();
       const normalized = normalizeTranscript(cleanText);
 
-      if(!cleanText || !normalized){
+      if(
+        !cleanText ||
+        !normalized ||
+        normalized === lastCommittedTranscript
+      ){
         return false;
       }
 
-      /* Prevent duplicate commits inside the same stop/end cycle. */
-      if(resultCommitted){
-        return false;
-      }
-
-      /* Prevent the same phrase from being committed twice across
-         back-to-back browser callbacks. */
-      if(normalized === lastCommittedTranscript){
-        return false;
-      }
-
-      resultCommitted = true;
       lastCommittedTranscript = normalized;
       addMessage(cleanText);
       return true;
     }
-
 
     function stopAllSpeechActivity(options = {}){
       const {
@@ -834,43 +809,6 @@
         speechFallback.classList.remove('show');
         dictation.classList.remove('show');
       }
-    }
-
-    function stopAndCommitRecognition(){
-      if(!recognition){
-        resetMicVisualState();
-        return;
-      }
-
-      endingSessionId = speechSessionId;
-
-      /* Commit the latest visible draft immediately. iOS sometimes
-         delays onend or never promotes interim text to a final result. */
-      const textToCommit =
-        liveTranscriptDraft ||
-        finalTranscript ||
-        liveText.textContent;
-
-      commitRecognitionText(textToCommit);
-
-      clearTimeout(recognitionWatchdog);
-      recognitionWatchdog = null;
-
-      try{
-        recognition.stop();
-      }catch(error){
-        try{
-          recognition.abort();
-        }catch(abortError){
-          /* Browser already ended the session. */
-        }
-      }
-
-      resetMicVisualState();
-      dictation.classList.remove('show');
-      finalTranscript = '';
-      liveTranscriptDraft = '';
-      setLiveTranscript('');
     }
 
     function stopRecognitionSession(useAbort = false){
@@ -912,9 +850,6 @@
         recognitionStarting = false;
         resultCommitted = false;
         finalTranscript = '';
-        liveTranscriptDraft = '';
-        speechSessionId += 1;
-        endingSessionId = 0;
 
         micBtn.classList.remove('unsupported');
         micBtn.classList.add('listening');
@@ -924,7 +859,7 @@
         dictation.classList.add('show');
         dictationLabel.textContent =
           isAndroid ? 'Listening — one phrase' : 'Listening';
-        setLiveTranscript('');
+        liveText.textContent = 'Start talking...';
       };
 
       recognition.onresult = event => {
@@ -946,7 +881,7 @@
               seenFinals.add(normalized);
               uniqueFinals.push(transcript);
             }
-          }else{
+          }else if(!isAndroid){
             interimText = transcript;
           }
         }
@@ -959,16 +894,11 @@
           );
         }
 
-        /* Always retain the best available phrase. On iPhone Chrome,
-           interim text may be all we receive before the stop tap. */
-        setLiveTranscript(
-          finalTranscript ||
-          interimText ||
-          liveTranscriptDraft
-        );
+        liveText.textContent =
+          (finalTranscript || interimText || 'Start talking...').trim();
 
         if(isAndroid && finalTranscript && !resultCommitted){
-          commitRecognitionText(finalTranscript);
+          resultCommitted = commitRecognitionText(finalTranscript);
         }
       };
 
@@ -979,19 +909,15 @@
       };
 
       recognition.onend = () => {
-        const textToCommit =
-          liveTranscriptDraft ||
-          finalTranscript;
+        const textToCommit = finalTranscript.trim();
 
         if(textToCommit && !resultCommitted){
-          commitRecognitionText(textToCommit);
+          resultCommitted = commitRecognitionText(textToCommit);
         }
 
         resetMicVisualState();
         dictation.classList.remove('show');
         finalTranscript = '';
-        liveTranscriptDraft = '';
-        setLiveTranscript('');
       };
 
       recognition.onerror = event => {
@@ -1050,12 +976,7 @@
         return;
       }
 
-      if(listening){
-        stopAndCommitRecognition();
-        return;
-      }
-
-      if(recognitionStarting){
+      if(listening || recognitionStarting){
         stopRecognitionSession(true);
         resetMicVisualState();
         dictation.classList.remove('show');
@@ -1065,8 +986,6 @@
       recognitionStarting = true;
       resultCommitted = false;
       finalTranscript = '';
-      liveTranscriptDraft = '';
-      setLiveTranscript('');
 
       micBtn.classList.add('listening');
       micBtn.textContent = '■';
@@ -1085,7 +1004,7 @@
         }else{
           dictation.classList.remove('show');
         }
-      }, isAndroid ? 3500 : 5000);
+      }, 3500);
 
       try{
         recognition.start();
@@ -1112,6 +1031,177 @@
     speechFallbackCancel.onclick = () => {
       closeSpeechFallback();
     };
+
+    /* =========================================================
+       TEXT-TO-SPEECH COMPATIBILITY
+       Silk can expose speechSynthesis but fail silently. This helper:
+       - resumes a paused engine
+       - waits briefly for voices
+       - speaks shorter chunks
+       - confirms that speech actually starts
+       - shows a clear notice if the browser blocks TTS
+       ========================================================= */
+    function splitSpeechText(text, maximumLength = 150){
+      const sentences = text
+        .split(/(?<=[.!?])\s+/)
+        .filter(Boolean);
+
+      const chunks = [];
+      let current = '';
+
+      sentences.forEach(sentence => {
+        const candidate =
+          current ? current + ' ' + sentence : sentence;
+
+        if(candidate.length <= maximumLength){
+          current = candidate;
+          return;
+        }
+
+        if(current){
+          chunks.push(current);
+        }
+
+        if(sentence.length <= maximumLength){
+          current = sentence;
+          return;
+        }
+
+        const words = sentence.split(/\s+/);
+        current = '';
+
+        words.forEach(word => {
+          const wordCandidate =
+            current ? current + ' ' + word : word;
+
+          if(wordCandidate.length > maximumLength && current){
+            chunks.push(current);
+            current = word;
+          }else{
+            current = wordCandidate;
+          }
+        });
+      });
+
+      if(current){
+        chunks.push(current);
+      }
+
+      return chunks;
+    }
+
+    function chooseEnglishVoice(){
+      if(!('speechSynthesis' in window)){
+        return null;
+      }
+
+      const voices = window.speechSynthesis.getVoices();
+
+      return (
+        voices.find(voice =>
+          /^en-US$/i.test(voice.lang)
+        ) ||
+        voices.find(voice =>
+          /^en/i.test(voice.lang)
+        ) ||
+        voices[0] ||
+        null
+      );
+    }
+
+    function speakStoryText(text, readButton){
+      if(
+        !('speechSynthesis' in window) ||
+        typeof SpeechSynthesisUtterance === 'undefined'
+      ){
+        readButton.classList.remove('dm-reading');
+        showToast('Read aloud is not available in this browser.');
+        return;
+      }
+
+      const engine = window.speechSynthesis;
+      const chunks = splitSpeechText(text);
+      let chunkIndex = 0;
+      let speechStarted = false;
+      let startWatchdog = null;
+
+      engine.cancel();
+      engine.resume();
+
+      function finishReading(){
+        clearTimeout(startWatchdog);
+        readButton.classList.remove('dm-reading');
+      }
+
+      function speakNextChunk(){
+        if(chunkIndex >= chunks.length){
+          finishReading();
+          return;
+        }
+
+        const utterance =
+          new SpeechSynthesisUtterance(chunks[chunkIndex]);
+
+        utterance.rate = .88;
+        utterance.pitch = 1.05;
+        utterance.volume = 1;
+
+        const voice = chooseEnglishVoice();
+        if(voice){
+          utterance.voice = voice;
+          utterance.lang = voice.lang || 'en-US';
+        }else{
+          utterance.lang = 'en-US';
+        }
+
+        utterance.onstart = () => {
+          speechStarted = true;
+          clearTimeout(startWatchdog);
+        };
+
+        utterance.onend = () => {
+          chunkIndex += 1;
+          setTimeout(speakNextChunk, 70);
+        };
+
+        utterance.onerror = () => {
+          finishReading();
+          showToast('The browser could not read this story aloud.');
+        };
+
+        engine.resume();
+        engine.speak(utterance);
+
+        startWatchdog = setTimeout(() => {
+          if(!speechStarted && !engine.speaking){
+            engine.cancel();
+            finishReading();
+
+            if(isSilk || isFireDevice){
+              showToast('Silk is blocking Read Aloud on this tablet.');
+            }else{
+              showToast('Read Aloud did not start. Tap again to retry.');
+            }
+          }
+        }, 1600);
+      }
+
+      /* Some engines populate voices asynchronously after the click. */
+      if(engine.getVoices().length){
+        speakNextChunk();
+      }else{
+        const voiceWait = setTimeout(speakNextChunk, 300);
+
+        engine.addEventListener(
+          'voiceschanged',
+          () => {
+            clearTimeout(voiceWait);
+            speakNextChunk();
+          },
+          { once:true }
+        );
+      }
+    }
 
     /* =========================================================
        READ STORY ALOUD
@@ -1163,25 +1253,7 @@
       animateButton(readButton);
       readButton.classList.add('dm-reading');
 
-      if('speechSynthesis' in window){
-        speechSynthesis.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(storyText);
-        utterance.rate = .88;
-        utterance.pitch = 1.05;
-
-        utterance.onend = () => {
-          readButton.classList.remove('dm-reading');
-        };
-
-        utterance.onerror = () => {
-          readButton.classList.remove('dm-reading');
-        };
-
-        speechSynthesis.speak(utterance);
-      }else{
-        readButton.classList.remove('dm-reading');
-      }
+      speakStoryText(storyText, readButton);
     };
 
     /* =========================================================
