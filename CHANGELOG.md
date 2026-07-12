@@ -1,15 +1,13 @@
 # Changelog
 
-## [0.14.3] - 2026-07-12
+## [0.14.4] - 2026-07-12
 
 ### Fixed
 
-- Improved microphone reliability in Chrome on iPhone.
-- The second microphone tap now immediately posts the latest captured words.
-- Interim iOS transcript text is preserved even when no final event arrives.
-- Prevented delayed onend callbacks from posting the same message twice.
-- Increased the non-Android microphone startup watchdog to five seconds.
-- Added a visual captured-text state while words are available to post.
+- Shifted the iPhone message column to the right so bubbles remain fully visible.
+- Added a more defensive Read Aloud engine for Amazon Silk.
+- Read Aloud now resumes paused speech, waits for voices, and speaks shorter chunks.
+- Added a visible notice when Silk exposes text-to-speech but blocks playback.
 
 ## [0.14.2] - 2026-07-12
 

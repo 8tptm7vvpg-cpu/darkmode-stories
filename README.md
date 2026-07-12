@@ -1,6 +1,6 @@
 # DARKMODE STORIES
 
-**Current version:** `0.14.3`
+**Current version:** `0.14.4`
 
 DARKMODE STORIES is a child-friendly creative storytelling experience built around speech-to-text, draggable story elements, drawing, original stickers, native device emoji input, parallax, and JPG export.
 
@@ -49,3 +49,8 @@ Do not add third-party characters, franchise artwork, logos, or sticker packs wi
 
 - Android Chrome uses one utterance per microphone session to prevent duplicated transcripts.
 - Amazon Silk uses keyboard dictation because browser-based `SpeechRecognition` may not have working microphone access even when the API object is present.
+
+
+## Fire tablet Read Aloud
+
+Version 0.14.4 retries text-to-speech using shorter chunks and a loaded English voice. If Amazon Silk blocks speech synthesis in the Kids browser, the app displays a notice rather than silently appearing to do nothing.
