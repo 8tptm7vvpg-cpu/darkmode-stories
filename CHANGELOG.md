@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.14.0] - 2026-07-12
+
+### Added
+
+- Added a dedicated post button to the right of Silk keyboard dictation.
+- Added Version 0.14.0 to the splash screen.
+- Expanded the first-run Storyboard instructions.
+
+### Fixed
+
+- Keyboard-dictated words on Silk now post directly to the Storyboard.
+- Read Aloud now includes readable text entered through the emoji/native-keyboard control.
+- Every non-microphone function button immediately stops active listening.
+- Text bubbles now stack vertically beneath one another instead of overlapping.
+
+### Changed
+
+- Renamed visible Artboard terminology to Storyboard.
+
 ## [0.13.0] - 2026-07-12
 
 ### Fixed

@@ -45,6 +45,7 @@
       <div class="intro-divider"></div>
       <div class="intro-url">DARKMODEWORKS.COM</div>
     </div>
+    <div class="intro-version">VERSION 0.14.0</div>
   </section>
 
   <!-- =========================================================
@@ -76,8 +77,10 @@
 
         <!-- Intro instructions inside the workspace -->
         <div class="hint" id="hint">
-          Drag to move the artboard.<br>
-          Tap the lock to draw and reveal the rainbow.
+          <strong>Welcome to your Storyboard!</strong><br>
+          🔓 Drag to move · 🔒 Lock to draw<br>
+          🎤 Talk and post your words · 😀 Add emojis<br>
+          ⭐ Add stickers · ⬇️ Save a picture
         </div>
 
         <!-- Larger movable Story Canvas -->
@@ -104,17 +107,24 @@
           <!-- Silk / unsupported-browser fallback:
                focus this field, then use the keyboard microphone. -->
           <div class="speech-fallback" id="speechFallback">
-            <textarea
-              id="speechFallbackInput"
-              class="speech-fallback-input"
-              rows="3"
-              placeholder="Tap here, then use the keyboard microphone…"
-              aria-label="Keyboard dictation text"
-            ></textarea>
-            <div class="speech-fallback-actions">
-              <button id="speechFallbackAdd">Add to Story</button>
-              <button id="speechFallbackCancel">Cancel</button>
+            <div class="speech-fallback-compose">
+              <textarea
+                id="speechFallbackInput"
+                class="speech-fallback-input"
+                rows="3"
+                placeholder="Tap here, then use the keyboard microphone…"
+                aria-label="Keyboard dictation text"
+              ></textarea>
+              <button
+                id="speechFallbackAdd"
+                class="speech-fallback-send"
+                aria-label="Post words to Storyboard"
+              >➤</button>
             </div>
+            <button
+              id="speechFallbackCancel"
+              class="speech-fallback-cancel"
+            >Cancel</button>
           </div>
         </div>
       </div>
