@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.14.5] - 2026-07-12
+
+### Fixed
+
+- Restored the reliable iPhone mic stop-and-post behavior that was lost in Version 14.4.
+- The second microphone tap now immediately posts the latest visible transcript.
+- Interim speech is preserved when the browser does not emit a final result.
+- Delayed onend callbacks cannot create a duplicate message.
+- Added a visible captured-text state before posting.
+
 ## [0.14.4] - 2026-07-12
 
 ### Fixed
