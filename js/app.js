@@ -649,111 +649,307 @@
     }
 
     /* =========================================================
-       SPEECH RECOGNITION
-       Uses the browser speech-recognition API when supported.
+       SPEECH RECOGNITION — VERSION 13
+       Browser behavior differs significantly:
+       - Android Chrome can repeat interim/continuous results.
+       - Amazon Silk may expose the constructor without providing a
+         working microphone-backed recognition session.
+
+       Strategy:
+       - Android uses one utterance at a time, with interim results off.
+       - Final phrases are normalized and deduplicated.
+       - Silk uses the tablet keyboard's own dictation field.
+       - A startup watchdog prevents the mic from getting stuck on.
        ========================================================= */
+    const userAgent = navigator.userAgent || '';
+    const isAndroid = /Android/i.test(userAgent);
+    const isSilk = /Silk\//i.test(userAgent);
+    const isFireDevice = /KF[A-Z]{2,}|Fire/i.test(userAgent);
+
     const SpeechRecognition =
       window.SpeechRecognition ||
       window.webkitSpeechRecognition;
 
+    const dictationLabel =
+      document.getElementById('dictationLabel');
+
+    const speechFallback =
+      document.getElementById('speechFallback');
+
+    const speechFallbackInput =
+      document.getElementById('speechFallbackInput');
+
+    const speechFallbackAdd =
+      document.getElementById('speechFallbackAdd');
+
+    const speechFallbackCancel =
+      document.getElementById('speechFallbackCancel');
+
     let recognition = null;
     let listening = false;
+    let recognitionStarting = false;
     let finalTranscript = '';
+    let lastCommittedTranscript = '';
+    let recognitionWatchdog = null;
+    let resultCommitted = false;
 
-    if(SpeechRecognition){
+    function normalizeTranscript(text){
+      return text
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s']/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function resetMicVisualState(){
+      listening = false;
+      recognitionStarting = false;
+
+      clearTimeout(recognitionWatchdog);
+      recognitionWatchdog = null;
+
+      micBtn.classList.remove('listening');
+      micBtn.textContent = '🎤';
+    }
+
+    function closeSpeechFallback(){
+      speechFallback.classList.remove('show');
+      speechFallbackInput.blur();
+      speechFallbackInput.value = '';
+      dictation.classList.remove('show');
+      resetMicVisualState();
+    }
+
+    function openSpeechFallback(message){
+      resetMicVisualState();
+
+      micBtn.classList.add('unsupported');
+      dictation.classList.add('show');
+      speechFallback.classList.add('show');
+
+      dictationLabel.textContent = 'Keyboard Dictation';
+      liveText.textContent = message;
+
+      setTimeout(() => {
+        speechFallbackInput.focus();
+      }, 120);
+    }
+
+    function commitRecognitionText(text){
+      const cleanText = text.trim();
+      const normalized = normalizeTranscript(cleanText);
+
+      if(
+        !cleanText ||
+        !normalized ||
+        normalized === lastCommittedTranscript
+      ){
+        return false;
+      }
+
+      lastCommittedTranscript = normalized;
+      addMessage(cleanText);
+      return true;
+    }
+
+    function stopRecognitionSession(useAbort = false){
+      if(!recognition){
+        resetMicVisualState();
+        return;
+      }
+
+      clearTimeout(recognitionWatchdog);
+      recognitionWatchdog = null;
+
+      try{
+        if(useAbort && typeof recognition.abort === 'function'){
+          recognition.abort();
+        }else{
+          recognition.stop();
+        }
+      }catch(error){
+        resetMicVisualState();
+        dictation.classList.remove('show');
+      }
+    }
+
+    const canUseBrowserRecognition =
+      Boolean(SpeechRecognition) && !isSilk;
+
+    if(canUseBrowserRecognition){
       recognition = new SpeechRecognition();
-
       recognition.lang = 'en-US';
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = !isAndroid;
+      recognition.interimResults = !isAndroid;
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
+        clearTimeout(recognitionWatchdog);
+        recognitionWatchdog = null;
+
         listening = true;
+        recognitionStarting = false;
+        resultCommitted = false;
         finalTranscript = '';
 
+        micBtn.classList.remove('unsupported');
         micBtn.classList.add('listening');
         micBtn.textContent = '■';
 
+        speechFallback.classList.remove('show');
         dictation.classList.add('show');
+        dictationLabel.textContent =
+          isAndroid ? 'Listening — one phrase' : 'Listening';
         liveText.textContent = 'Start talking...';
-
-        closeLibraries();
       };
 
       recognition.onresult = event => {
         let interimText = '';
-        let completedText = '';
+        const uniqueFinals = [];
+        const seenFinals = new Set();
 
-        for(let index = event.resultIndex; index < event.results.length; index++){
-          const transcript = event.results[index][0].transcript;
+        for(let index = 0; index < event.results.length; index++){
+          const result = event.results[index];
+          const transcript = result[0].transcript.trim();
+          const normalized = normalizeTranscript(transcript);
 
-          if(event.results[index].isFinal){
-            completedText += transcript + ' ';
-          }else{
-            interimText += transcript;
+          if(!normalized){
+            continue;
+          }
+
+          if(result.isFinal){
+            if(!seenFinals.has(normalized)){
+              seenFinals.add(normalized);
+              uniqueFinals.push(transcript);
+            }
+          }else if(!isAndroid){
+            interimText = transcript;
           }
         }
 
-        if(completedText){
-          finalTranscript += completedText;
+        if(uniqueFinals.length){
+          finalTranscript = uniqueFinals.reduce(
+            (longest, item) =>
+              item.length > longest.length ? item : longest,
+            ''
+          );
         }
 
         liveText.textContent =
-          (finalTranscript + interimText).trim() ||
-          'Start talking...';
+          (finalTranscript || interimText || 'Start talking...').trim();
+
+        if(isAndroid && finalTranscript && !resultCommitted){
+          resultCommitted = commitRecognitionText(finalTranscript);
+        }
+      };
+
+      recognition.onspeechend = () => {
+        if(isAndroid){
+          stopRecognitionSession(false);
+        }
       };
 
       recognition.onend = () => {
-        listening = false;
+        const textToCommit = finalTranscript.trim();
 
-        micBtn.classList.remove('listening');
-        micBtn.textContent = '🎤';
-
-        dictation.classList.remove('show');
-
-        if(finalTranscript.trim()){
-          addMessage(finalTranscript);
+        if(textToCommit && !resultCommitted){
+          resultCommitted = commitRecognitionText(textToCommit);
         }
 
+        resetMicVisualState();
+        dictation.classList.remove('show');
         finalTranscript = '';
       };
 
-      recognition.onerror = () => {
-        listening = false;
+      recognition.onerror = event => {
+        resetMicVisualState();
 
-        micBtn.classList.remove('listening');
-        micBtn.textContent = '🎤';
+        const errorName = event?.error || 'unknown';
 
-        dictation.classList.remove('show');
+        if(
+          errorName === 'not-allowed' ||
+          errorName === 'service-not-allowed' ||
+          errorName === 'audio-capture'
+        ){
+          openSpeechFallback(
+            'Browser microphone recognition is unavailable. Use the keyboard microphone below.'
+          );
+        }else{
+          dictation.classList.remove('show');
+        }
       };
+    }else{
+      micBtn.classList.add('unsupported');
     }
 
-    /* Starts or stops speech recognition */
     micBtn.onclick = event => {
       closeLibraries();
       animateButton(event.currentTarget);
 
-      if(!recognition){
-        dictation.classList.add('show');
-        liveText.textContent =
-          'Use the tablet keyboard microphone if needed.';
-
-        setTimeout(() => {
-          dictation.classList.remove('show');
-        }, 2400);
-
+      if(isSilk || !canUseBrowserRecognition){
+        if(speechFallback.classList.contains('show')){
+          closeSpeechFallback();
+        }else{
+          openSpeechFallback(
+            'Tap the field, then use the microphone on the Fire keyboard.'
+          );
+        }
         return;
       }
 
-      if(listening){
-        recognition.stop();
-      }else{
-        try{
-          recognition.start();
-        }catch(error){
-          /* Prevents an error if the button is tapped too quickly */
-        }
+      if(listening || recognitionStarting){
+        stopRecognitionSession(true);
+        resetMicVisualState();
+        dictation.classList.remove('show');
+        return;
       }
+
+      recognitionStarting = true;
+      resultCommitted = false;
+      finalTranscript = '';
+
+      micBtn.classList.add('listening');
+      micBtn.textContent = '■';
+      dictation.classList.add('show');
+      dictationLabel.textContent = 'Starting microphone';
+      liveText.textContent = 'Getting ready...';
+
+      recognitionWatchdog = setTimeout(() => {
+        stopRecognitionSession(true);
+        resetMicVisualState();
+
+        if(isFireDevice){
+          openSpeechFallback(
+            'Silk could not start speech recognition. Use the keyboard microphone below.'
+          );
+        }else{
+          dictation.classList.remove('show');
+        }
+      }, 3500);
+
+      try{
+        recognition.start();
+      }catch(error){
+        resetMicVisualState();
+        openSpeechFallback(
+          'Speech recognition could not start. Use keyboard dictation below.'
+        );
+      }
+    };
+
+    speechFallbackAdd.onclick = event => {
+      const fallbackText = speechFallbackInput.value.trim();
+
+      if(commitRecognitionText(fallbackText)){
+        animateButton(event.currentTarget);
+        closeSpeechFallback();
+      }else{
+        animateButton(event.currentTarget, 'warning');
+      }
+    };
+
+    speechFallbackCancel.onclick = () => {
+      closeSpeechFallback();
     };
 
     /* =========================================================
