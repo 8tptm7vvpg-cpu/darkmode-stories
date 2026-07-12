@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.0] - 2026-07-12
+
+### Fixed
+
+- Prevented Android speech recognition from repeating the same phrase multiple times.
+- Android now uses a single-utterance recognition mode with interim results disabled.
+- Added normalized transcript deduplication.
+- Added a startup watchdog so the microphone cannot remain visually stuck on.
+- The mic button now reliably cancels an active or starting session.
+
+### Changed
+
+- Amazon Silk uses a keyboard-dictation fallback because Silk may expose the Web Speech constructor without completing microphone recognition.
+- Silk's second microphone tap closes the fallback and resets the button.
+- Added explicit Add to Story and Cancel controls for keyboard dictation.
+
 ## [0.12.0] - 2026-07-12
 
 ### Fixed

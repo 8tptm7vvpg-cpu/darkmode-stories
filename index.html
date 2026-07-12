@@ -98,8 +98,24 @@
 
         <!-- Shows live speech-to-text while listening -->
         <div class="dictation" id="dictation">
-          <small>Listening</small>
+          <small id="dictationLabel">Listening</small>
           <span id="liveText">Start talking...</span>
+
+          <!-- Silk / unsupported-browser fallback:
+               focus this field, then use the keyboard microphone. -->
+          <div class="speech-fallback" id="speechFallback">
+            <textarea
+              id="speechFallbackInput"
+              class="speech-fallback-input"
+              rows="3"
+              placeholder="Tap here, then use the keyboard microphone…"
+              aria-label="Keyboard dictation text"
+            ></textarea>
+            <div class="speech-fallback-actions">
+              <button id="speechFallbackAdd">Add to Story</button>
+              <button id="speechFallbackCancel">Cancel</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
