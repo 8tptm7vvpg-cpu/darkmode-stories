@@ -1051,3 +1051,307 @@
   object-fit:contain;
   pointer-events:none;
 }
+
+
+/* =============================================================
+   VERSION 11 — MOBILE CANVAS, BLACK BRUSH, OVERSIZED CHILD UI
+   These overrides intentionally appear last so they supersede
+   earlier prototype rules without removing the documented history.
+   ============================================================= */
+
+:root{
+  --headerH:60px;
+  --dockH:96px;
+}
+
+/* Use the actual visible mobile viewport and reserve room for dock. */
+html,
+body{
+  height:100%;
+  min-height:100%;
+  overscroll-behavior:none;
+}
+
+.app{
+  width:100%;
+  height:100svh;
+  min-height:100svh;
+  grid-template-rows:var(--headerH) minmax(0,1fr);
+  padding-bottom:0;
+}
+
+/* Canvas is shortened so the floating dock is always visible. */
+.viewport-wrap{
+  min-height:0;
+  height:100%;
+  padding:
+    8px
+    10px
+    calc(98px + env(safe-area-inset-bottom))
+    10px;
+  overflow:hidden;
+}
+
+.viewport{
+  min-height:0;
+  height:100%;
+  background:
+    linear-gradient(rgba(5,7,12,.15),rgba(5,7,12,.15)) padding-box,
+    linear-gradient(
+      135deg,
+      var(--cyan),
+      var(--purple),
+      var(--pink),
+      var(--orange),
+      var(--yellow),
+      var(--lime)
+    ) border-box;
+}
+
+/* Always show the bright gradient artboard underneath the brush. */
+.artboard{
+  background:
+    radial-gradient(circle at 18% 18%,rgba(255,255,255,.3),transparent 12%),
+    radial-gradient(circle at 78% 72%,rgba(255,255,255,.2),transparent 14%),
+    linear-gradient(
+      135deg,
+      #00eaff 0%,
+      #396dff 15%,
+      #7c5cff 28%,
+      #ff3dbb 46%,
+      #ff5c5c 59%,
+      #ff9a3d 70%,
+      #ffe45c 83%,
+      #8cff54 100%
+    );
+}
+
+/* The canvas is now transparent until black brush marks are painted. */
+.scratch{
+  background:transparent;
+}
+
+/* Floating dock is attached to the visible browser viewport. */
+.dock-space{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  height:0;
+  z-index:70;
+  pointer-events:none;
+}
+
+.dock{
+  position:fixed;
+  left:50%;
+  bottom:max(8px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(calc(100vw - 18px),640px);
+  height:82px;
+  padding:9px 10px;
+  pointer-events:auto;
+}
+
+.library{
+  position:fixed;
+  bottom:calc(98px + env(safe-area-inset-bottom));
+  width:min(calc(100vw - 20px),640px);
+  max-height:min(46vh,390px);
+  z-index:80;
+  pointer-events:auto;
+}
+
+.dictation{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:calc(104px + env(safe-area-inset-bottom));
+  z-index:85;
+}
+
+/* Make child-facing speech bubbles intentionally oversized. */
+.message{
+  width:min(620px,80vw);
+  min-height:88px;
+  padding:22px 24px;
+  border-radius:32px 32px 10px 32px;
+  font-size:clamp(1.65rem,6.2vw,2.6rem);
+  font-weight:950;
+  line-height:1.18;
+  letter-spacing:-.025em;
+  text-shadow:0 2px 0 rgba(0,0,0,.35);
+  border:3px solid rgba(255,255,255,.18);
+  box-shadow:
+    0 0 22px rgba(0,234,255,.2),
+    0 12px 24px rgba(0,0,0,.3);
+}
+
+/* Give every sticker a generous, visible touch target. */
+.sticker{
+  z-index:12;
+  min-width:108px;
+  min-height:108px;
+  display:grid;
+  place-items:center;
+  padding:10px;
+  border-radius:28px;
+  pointer-events:auto;
+  cursor:grab;
+  outline:2px solid transparent;
+  background:rgba(4,7,13,.08);
+}
+
+.sticker-image{
+  width:112px;
+  height:112px;
+  padding:10px;
+  object-fit:contain;
+  background:rgba(5,8,15,.28);
+  border:2px solid rgba(255,255,255,.14);
+  border-radius:28px;
+  opacity:1!important;
+  visibility:visible!important;
+}
+
+.sticker.is-dragging{
+  z-index:100;
+  outline-color:var(--cyan);
+  background:rgba(5,8,15,.52);
+  box-shadow:
+    0 0 0 7px rgba(0,234,255,.12),
+    0 0 32px rgba(0,234,255,.55),
+    0 0 46px rgba(255,61,187,.32);
+  cursor:grabbing;
+}
+
+/* Large active brush crosshair, similar to an oversized cursor. */
+.draw-target{
+  position:absolute;
+  left:0;
+  top:0;
+  width:86px;
+  height:86px;
+  z-index:60;
+  pointer-events:none;
+  transform:translate(-50%,-50%);
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .08s ease;
+  filter:drop-shadow(0 0 12px rgba(255,255,255,.65));
+}
+
+.draw-target.show{
+  opacity:1;
+  visibility:visible;
+}
+
+.draw-target::before,
+.draw-target::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:50%;
+  background:#fff;
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,.75),
+    0 0 12px rgba(0,234,255,.9);
+  transform:translate(-50%,-50%);
+}
+
+.draw-target::before{
+  width:86px;
+  height:4px;
+}
+
+.draw-target::after{
+  width:4px;
+  height:86px;
+}
+
+.draw-target-ring{
+  position:absolute;
+  inset:10px;
+  border-radius:50%;
+  border:5px solid rgba(255,255,255,.95);
+  box-shadow:
+    inset 0 0 0 3px rgba(0,0,0,.8),
+    0 0 18px rgba(0,234,255,.85);
+}
+
+.draw-target-dot{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:15px;
+  height:15px;
+  border-radius:50%;
+  background:#000;
+  border:4px solid #fff;
+  transform:translate(-50%,-50%);
+}
+
+/* Stronger mobile sizing for controls. */
+@media(max-width:600px){
+  .topbar{
+    grid-template-columns:46px 1fr 46px;
+    padding:6px 9px;
+  }
+
+  .topbar h1{
+    font-size:1.6rem;
+  }
+
+  .icon-btn{
+    width:42px;
+    height:42px;
+  }
+
+  .dock{
+    grid-template-columns:1fr 1fr 1.3fr 1fr 1fr;
+    gap:6px;
+  }
+
+  .dock-btn{
+    height:52px;
+    font-size:1.3rem;
+    border-radius:16px;
+  }
+
+  .mic{
+    width:74px;
+    height:74px;
+    margin-top:-22px;
+    font-size:2rem;
+  }
+
+  .message{
+    width:76vw;
+    font-size:clamp(1.55rem,6.4vw,2.15rem);
+    padding:19px 20px;
+  }
+}
+
+@media(max-height:650px){
+  :root{
+    --headerH:54px;
+  }
+
+  .viewport-wrap{
+    padding-bottom:86px;
+  }
+
+  .dock{
+    height:72px;
+    bottom:max(5px,env(safe-area-inset-bottom));
+  }
+
+  .mic{
+    width:68px;
+    height:68px;
+  }
+
+  .library{
+    bottom:calc(84px + env(safe-area-inset-bottom));
+  }
+}
