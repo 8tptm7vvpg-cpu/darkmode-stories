@@ -108,6 +108,16 @@
     });
 
     /* =========================================================
+       APPLICATION BOOT STATUS
+       Confirms that JavaScript successfully parsed and began running.
+       ========================================================= */
+    document.documentElement.dataset.storiesJs = 'loaded';
+
+    window.addEventListener('error', event => {
+      console.error('DARKMODE STORIES runtime error:', event.error || event.message);
+    });
+
+    /* =========================================================
        ELEMENT REFERENCES
        Stores frequently used page elements in variables.
        ========================================================= */
@@ -221,8 +231,17 @@
           grid.appendChild(button);
         });
       }catch(error){
-        grid.innerHTML =
-          '<div class="library-title">Add image files to assets/stickers and push to GitHub.</div>';
+        /* Build the fallback with DOM methods instead of a quoted
+           multi-line HTML string. This avoids syntax corruption when
+           app.js is uploaded or edited through GitHub's mobile UI. */
+        grid.replaceChildren();
+
+        const fallbackMessage = document.createElement('div');
+        fallbackMessage.className = 'library-title';
+        fallbackMessage.textContent =
+          'Add image files to assets/stickers and push to GitHub.';
+
+        grid.appendChild(fallbackMessage);
         console.warn(error);
       }
     }
