@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.0] - 2026-07-12
+
+### Fixed
+
+- New speech-to-text messages now appear inside the currently visible Story Canvas.
+- Message placement accounts for the current artboard pan position.
+- Consecutive messages stack with small alternating offsets.
+
+### Changed
+
+- Replaced the large crosshair with a compact neon brush cursor.
+- Reduced the black brush diameter from 72 px to 36 px.
+- Added a smoother message-arrival animation.
+
 ## [0.11.0] - 2026-07-12
 
 ### Changed
