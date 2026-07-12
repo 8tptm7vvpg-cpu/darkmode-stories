@@ -1,1 +1,1053 @@
+/* =========================================================
+       GLOBAL COLOR VARIABLES
+       Edit these values to quickly change the visual theme.
+       ========================================================= */
+    :root{
+      --bg:#020204;
+      --panel:#0a0d14;
+      --panel2:#111522;
+      --text:#f7f8ff;
+      --muted:#97a0b5;
 
+      --cyan:#00eaff;
+      --pink:#ff3dbb;
+      --purple:#7c5cff;
+      --yellow:#ffe45c;
+      --lime:#8cff54;
+      --orange:#ff8c42;
+
+      --headerH:68px;
+      --dockH:108px;
+    }
+
+    /* =========================================================
+       GLOBAL RESET
+       Keeps layout sizing predictable and removes default spacing.
+       ========================================================= */
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    html,
+    body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Arial, Helvetica, sans-serif;
+    }
+
+    button{
+      font:inherit;
+    }
+
+    body{
+      background:
+        radial-gradient(circle at 12% 8%, rgba(0,234,255,.08), transparent 24%),
+        radial-gradient(circle at 88% 10%, rgba(255,61,187,.08), transparent 24%),
+        linear-gradient(180deg, #020204, #060912 60%, #020204);
+    }
+
+    /* =========================================================
+       GLOBAL PARALLAX BACKGROUND
+       Three decorative layers move at different speeds.
+       JavaScript updates CSS variables as the Story Canvas moves.
+       The layers are decorative only and never capture touches.
+       ========================================================= */
+    .parallax-scene{
+      position:fixed;
+      inset:0;
+      overflow:hidden;
+      pointer-events:none;
+      z-index:0;
+    }
+
+    .parallax-layer{
+      position:absolute;
+      inset:-12%;
+      will-change:transform;
+      transition:transform .08s linear;
+    }
+
+    /* Slowest-moving distant color haze */
+    .parallax-far{
+      transform:
+        translate3d(
+          calc((var(--px, 0px) * -.06) + (var(--tiltX, 0px) * .18)),
+          calc((var(--py, 0px) * -.06) + (var(--tiltY, 0px) * .18)),
+          0
+        );
+      background:
+        radial-gradient(circle at 18% 24%, rgba(0,234,255,.12), transparent 18%),
+        radial-gradient(circle at 78% 18%, rgba(255,61,187,.11), transparent 17%),
+        radial-gradient(circle at 68% 82%, rgba(124,92,255,.1), transparent 20%);
+      filter:blur(18px);
+    }
+
+    /* Mid-depth star field */
+    .parallax-mid{
+      transform:
+        translate3d(
+          calc((var(--px, 0px) * -.12) + (var(--tiltX, 0px) * .3)),
+          calc((var(--py, 0px) * -.12) + (var(--tiltY, 0px) * .3)),
+          0
+        );
+      opacity:.82;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.9) 0 1px, transparent 1.8px),
+        radial-gradient(circle, rgba(0,234,255,.75) 0 1px, transparent 1.8px),
+        radial-gradient(circle, rgba(255,61,187,.7) 0 1px, transparent 1.8px);
+      background-size:110px 110px, 170px 170px, 230px 230px;
+      background-position:20px 30px, 60px 90px, 120px 40px;
+      animation:starDrift 22s linear infinite;
+    }
+
+    /* Closest-moving faint neon rings */
+    .parallax-near{
+      transform:
+        translate3d(
+          calc((var(--px, 0px) * -.2) + (var(--tiltX, 0px) * .45)),
+          calc((var(--py, 0px) * -.2) + (var(--tiltY, 0px) * .45)),
+          0
+        );
+      background:
+        radial-gradient(circle at 22% 76%, transparent 0 7%, rgba(0,234,255,.1) 7.4% 7.7%, transparent 8.1%),
+        radial-gradient(circle at 84% 64%, transparent 0 9%, rgba(255,61,187,.09) 9.4% 9.7%, transparent 10.1%),
+        radial-gradient(circle at 56% 18%, transparent 0 5%, rgba(255,228,92,.07) 5.4% 5.7%, transparent 6.1%);
+      filter:blur(.2px);
+    }
+
+    @keyframes starDrift{
+      to{
+        background-position:130px 140px, -80px 260px, 280px -120px;
+      }
+    }
+
+    /* Keeps the application above the decorative parallax layers */
+    .app{
+      position:relative;
+      z-index:2;
+    }
+
+    /* =========================================================
+       MAIN APP GRID
+       The interface is divided into:
+       1. Header
+       2. Story Canvas viewport
+       3. Floating control dock area
+       ========================================================= */
+    .app{
+      height:100dvh;
+      min-height:100vh;
+      display:grid;
+      grid-template-rows:var(--headerH) 1fr var(--dockH);
+    }
+
+    /* =========================================================
+       FULL-SCREEN INTRO / SPLASH SCREEN
+       This appears when the page first loads, then fades away.
+       ========================================================= */
+    .intro{
+      position:fixed;
+      inset:0;
+      z-index:999;
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      background:#020204;
+      animation:introOut .8s ease 5.35s forwards;
+    }
+
+    /* Soft rotating color haze behind the logo sequence */
+    .intro::before{
+      content:"";
+      position:absolute;
+      inset:-30%;
+      background:
+        conic-gradient(
+          from 0deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--orange),
+          var(--yellow),
+          var(--lime),
+          var(--cyan)
+        );
+      filter:blur(80px);
+      opacity:.15;
+      animation:spin 5s linear infinite;
+    }
+
+    /* Centers the intro typography */
+    .intro-card{
+      position:relative;
+      width:min(90vw, 760px);
+      padding:28px;
+      text-align:center;
+    }
+
+    /* Largest title: DARKMODE */
+    .intro-darkmode{
+      margin:0;
+      font-size:clamp(3.3rem, 13vw, 7.6rem);
+      font-weight:1000;
+      letter-spacing:-.06em;
+      line-height:.9;
+      color:#ffffff;
+      text-shadow:
+        0 0 10px rgba(255,255,255,.42),
+        0 0 26px rgba(0,234,255,.24),
+        0 0 42px rgba(255,61,187,.13);
+      opacity:0;
+      animation:brandIn .85s .55s forwards;
+    }
+
+    /* Smaller PRESENTS label under DARKMODE */
+    .intro-presents{
+      margin-top:20px;
+      font-size:clamp(.9rem, 3vw, 1.2rem);
+      letter-spacing:.5em;
+      text-transform:uppercase;
+      color:#aab1c4;
+      opacity:0;
+      animation:fadeUp .55s 1.55s forwards;
+    }
+
+    /* Second-largest product title: STORIES */
+    .intro-stories{
+      margin-top:14px;
+      font-size:clamp(3rem, 11vw, 6.8rem);
+      font-weight:1000;
+      letter-spacing:-.055em;
+      line-height:.9;
+
+      background:
+        linear-gradient(
+          90deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--orange),
+          var(--yellow),
+          var(--lime)
+        );
+      background-size:220% 100%;
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+
+      filter:drop-shadow(0 0 20px rgba(124,92,255,.38));
+      opacity:0;
+      animation:
+        brandIn .85s 2.2s forwards,
+        gradientMove 3s linear 2.2s infinite;
+    }
+
+    /* Decorative gradient line separating titles from website URL */
+    .intro-divider{
+      width:0;
+      height:4px;
+      margin:56px auto 0;
+      border-radius:999px;
+      background:
+        linear-gradient(
+          90deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--orange),
+          var(--yellow),
+          var(--lime)
+        );
+      box-shadow:
+        0 0 14px rgba(0,234,255,.32),
+        0 0 24px rgba(255,61,187,.18);
+      animation:lineGrow .8s 3.15s forwards;
+    }
+
+    /* Smallest text: website URL below the divider */
+    .intro-url{
+      margin-top:18px;
+      font-size:clamp(.72rem, 2.5vw, 1rem);
+      letter-spacing:.28em;
+      color:#d8dcea;
+      opacity:0;
+      animation:fadeUp .55s 4s forwards;
+    }
+
+    /* Intro animation keyframes */
+    @keyframes introOut{
+      to{
+        opacity:0;
+        visibility:hidden;
+        transform:scale(1.04);
+      }
+    }
+
+    @keyframes spin{
+      to{
+        transform:rotate(360deg);
+      }
+    }
+
+    @keyframes fadeUp{
+      from{
+        opacity:0;
+        transform:translateY(12px);
+      }
+      to{
+        opacity:1;
+        transform:none;
+      }
+    }
+
+    @keyframes brandIn{
+      from{
+        opacity:0;
+        transform:scale(.82);
+        filter:blur(10px);
+      }
+      to{
+        opacity:1;
+        transform:scale(1);
+        filter:blur(0);
+      }
+    }
+
+    @keyframes gradientMove{
+      to{
+        background-position:220% 0;
+      }
+    }
+
+    @keyframes lineGrow{
+      to{
+        width:84%;
+      }
+    }
+
+    /* =========================================================
+       TOP HEADER
+       Contains:
+       - Reset button
+       - My Stories title
+       - Export JPG button
+       ========================================================= */
+    .topbar{
+      display:grid;
+      grid-template-columns:52px 1fr 52px;
+      align-items:center;
+      padding:8px 12px;
+      background:rgba(4,5,9,.94);
+      border-bottom:1px solid rgba(255,255,255,.07);
+      box-shadow:0 8px 26px rgba(0,0,0,.34);
+      backdrop-filter:blur(12px);
+      z-index:20;
+    }
+
+    .topbar h1{
+      margin:0;
+      text-align:center;
+      font-size:clamp(1.45rem, 5vw, 2.05rem);
+      font-weight:1000;
+      background:linear-gradient(
+        90deg,
+        var(--cyan),
+        var(--purple),
+        var(--pink),
+        var(--yellow)
+      );
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+    }
+
+    .icon-btn{
+      width:46px;
+      height:46px;
+      border-radius:15px;
+      border:2px solid #263047;
+      background:#0d121d;
+      color:white;
+      font-size:1.3rem;
+      box-shadow:0 0 12px rgba(124,92,255,.12);
+    }
+
+    .icon-btn:active{
+      transform:scale(.92);
+      box-shadow:0 0 20px var(--cyan);
+    }
+
+    /* =========================================================
+       STORY CANVAS VIEWPORT
+       The viewport is the visible window.
+       The artboard inside it is much larger and can be dragged.
+       ========================================================= */
+    .viewport-wrap{
+      min-height:0;
+      padding:10px 12px 6px;
+    }
+
+    .viewport{
+      position:relative;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      border-radius:28px;
+      border:3px solid transparent;
+
+      background:
+        linear-gradient(#080a10, #080a10) padding-box,
+        linear-gradient(
+          135deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--orange),
+          var(--yellow),
+          var(--lime)
+        ) border-box;
+
+      box-shadow:
+        0 0 18px rgba(0,234,255,.14),
+        0 0 30px rgba(255,61,187,.1);
+
+      touch-action:none;
+    }
+
+    /* Larger movable workspace behind the visible viewport */
+    .artboard{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:1600px;
+      height:1200px;
+      transform:translate(-50%, -50%);
+      transform-origin:0 0;
+
+      background:
+        radial-gradient(circle at 18% 18%, rgba(255,255,255,.2), transparent 10%),
+        linear-gradient(
+          135deg,
+          #00eaff 0%,
+          #7c5cff 23%,
+          #ff3dbb 43%,
+          #ff8c42 62%,
+          #ffe45c 79%,
+          #8cff54 100%
+        );
+
+      box-shadow:0 0 80px rgba(124,92,255,.14);
+    }
+
+    /* Black scratch-off layer drawn over the gradient artboard */
+    .scratch{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      z-index:1;
+      touch-action:none;
+    }
+
+    /* Layer that holds message bubbles, emojis, and stickers */
+    .content-layer{
+      position:absolute;
+      inset:0;
+      z-index:2;
+    }
+
+    /* Speech-to-text message bubbles */
+    .message{
+      position:absolute;
+      width:min(500px, 65vw);
+      padding:15px 18px;
+      border-radius:24px 24px 8px 24px;
+      background:rgba(8,12,22,.88);
+      border:2px solid rgba(255,255,255,.09);
+      color:white;
+      box-shadow:0 0 16px rgba(0,234,255,.12);
+      font-size:clamp(1.1rem, 4vw, 1.65rem);
+      line-height:1.4;
+      word-break:break-word;
+      animation:popIn .28s ease both;
+    }
+
+    /* Draggable emoji and sticker objects */
+    .sticker{
+      position:absolute;
+      font-size:72px;
+      user-select:none;
+      touch-action:none;
+      filter:drop-shadow(0 0 12px rgba(255,255,255,.28));
+      animation:popIn .28s ease both;
+    }
+
+    @keyframes popIn{
+      from{
+        opacity:0;
+        transform:scale(.45);
+      }
+      to{
+        opacity:1;
+        transform:scale(1);
+      }
+    }
+
+    /* Instruction card shown before the user interacts */
+    .hint{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%);
+      width:min(82%, 520px);
+      padding:18px;
+      text-align:center;
+      border-radius:22px;
+      background:rgba(3,5,10,.82);
+      border:2px solid rgba(255,255,255,.1);
+      z-index:5;
+      color:#d7dbea;
+      font-weight:800;
+      line-height:1.45;
+      pointer-events:none;
+    }
+
+    /* Small label showing whether the user is moving or drawing */
+    .mode-badge{
+      position:absolute;
+      left:12px;
+      top:12px;
+      z-index:10;
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(5,8,14,.88);
+      border:2px solid rgba(0,234,255,.35);
+      font-size:.82rem;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      box-shadow:0 0 14px rgba(0,234,255,.12);
+    }
+
+    /* =========================================================
+       EMOJI AND STICKER LIBRARIES
+       These pop up above the floating control dock.
+       ========================================================= */
+    .library{
+      position:absolute;
+      left:50%;
+      bottom:104px;
+      transform:translateX(-50%) translateY(14px) scale(.96);
+      width:min(calc(100% - 28px), 640px);
+      max-height:42vh;
+      overflow:auto;
+      padding:14px;
+      border-radius:26px;
+      background:rgba(7,9,15,.98);
+      border:3px solid transparent;
+
+      background:
+        linear-gradient(rgba(7,9,15,.99), rgba(7,9,15,.99)) padding-box,
+        linear-gradient(
+          135deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--yellow)
+        ) border-box;
+
+      box-shadow:
+        0 18px 46px rgba(0,0,0,.62),
+        0 0 28px rgba(124,92,255,.2);
+
+      opacity:0;
+      visibility:hidden;
+      transition:.2s ease;
+      z-index:40;
+    }
+
+    .library.show{
+      opacity:1;
+      visibility:visible;
+      transform:translateX(-50%) translateY(0) scale(1);
+    }
+
+    .library-title{
+      text-align:center;
+      color:#bfc6d8;
+      font-size:.9rem;
+      font-weight:900;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+      margin-bottom:12px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(5, 1fr);
+      gap:10px;
+    }
+
+    .pick{
+      min-height:58px;
+      border-radius:18px;
+      border:2px solid #273047;
+      background:#111623;
+      color:white;
+      font-size:2rem;
+    }
+
+    .pick:active{
+      transform:scale(.9);
+      border-color:var(--cyan);
+      box-shadow:0 0 18px var(--cyan);
+    }
+
+    /* =========================================================
+       LIVE DICTATION PREVIEW
+       Shows words while the microphone is listening.
+       ========================================================= */
+    .dictation{
+      position:absolute;
+      left:16px;
+      right:16px;
+      bottom:116px;
+      z-index:45;
+      min-height:64px;
+      max-height:120px;
+      overflow:auto;
+      padding:14px 16px;
+      border-radius:20px;
+      background:rgba(5,8,15,.94);
+      border:2px solid rgba(0,234,255,.4);
+      box-shadow:0 0 18px rgba(0,234,255,.18);
+      display:none;
+      font-size:clamp(1rem, 3.7vw, 1.35rem);
+    }
+
+    .dictation.show{
+      display:block;
+    }
+
+    .dictation small{
+      display:block;
+      color:#8fa1bd;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      font-weight:900;
+      margin-bottom:5px;
+    }
+
+    /* =========================================================
+       FLOATING CONTROL DOCK
+       Buttons:
+       - Emoji library
+       - Lock / draw mode toggle
+       - Large microphone button
+       - Sticker library
+       - Read-aloud button
+       ========================================================= */
+    .dock-space{
+      position:relative;
+    }
+
+    .dock{
+      position:absolute;
+      left:50%;
+      bottom:max(10px, env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      width:min(calc(100% - 24px), 640px);
+      height:88px;
+      border-radius:30px;
+      padding:10px 14px;
+
+      display:grid;
+      grid-template-columns:1fr 1fr 1.35fr 1fr 1fr;
+      gap:8px;
+      align-items:center;
+
+      background:rgba(7,9,15,.96);
+      border:3px solid transparent;
+
+      background:
+        linear-gradient(rgba(7,9,15,.98), rgba(7,9,15,.98)) padding-box,
+        linear-gradient(
+          135deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--yellow)
+        ) border-box;
+
+      box-shadow:
+        0 12px 32px rgba(0,0,0,.58),
+        0 0 18px rgba(0,234,255,.16),
+        0 0 28px rgba(255,61,187,.1);
+
+      z-index:50;
+    }
+
+    .dock-btn{
+      height:56px;
+      border-radius:18px;
+      border:2px solid #2a334a;
+      background:#0e1320;
+      color:white;
+      font-size:1.45rem;
+      font-weight:900;
+    }
+
+    .dock-btn:active{
+      transform:scale(.91);
+      filter:brightness(1.5);
+    }
+
+    /* Large center microphone button */
+    .mic{
+      width:82px;
+      height:82px;
+      justify-self:center;
+      margin-top:-24px;
+      border-radius:50%;
+      border:4px solid transparent;
+
+      background:
+        linear-gradient(#0a0d16, #0a0d16) padding-box,
+        linear-gradient(
+          135deg,
+          var(--cyan),
+          var(--purple),
+          var(--pink),
+          var(--yellow)
+        ) border-box;
+
+      color:white;
+      font-size:2.2rem;
+
+      box-shadow:
+        0 0 20px rgba(0,234,255,.26),
+        0 0 34px rgba(255,61,187,.18),
+        0 10px 24px rgba(0,0,0,.55);
+    }
+
+    /* Bright pulse while speech recognition is active */
+    .mic.listening{
+      animation:micPulse 1s infinite;
+    }
+
+    @keyframes micPulse{
+      0%,
+      100%{
+        transform:scale(1);
+        box-shadow:
+          0 0 22px var(--pink),
+          0 0 38px rgba(0,234,255,.38);
+      }
+      50%{
+        transform:scale(1.08);
+        box-shadow:
+          0 0 38px var(--cyan),
+          0 0 58px rgba(255,61,187,.65);
+      }
+    }
+
+    /* Highlights the lock button while Draw Mode is active */
+    .locked{
+      border-color:var(--yellow)!important;
+      box-shadow:0 0 18px rgba(255,228,92,.35)!important;
+    }
+
+    /* =========================================================
+       EXPORT STATUS MESSAGE
+       Brief confirmation after the JPG download begins.
+       ========================================================= */
+    .toast{
+      position:fixed;
+      left:50%;
+      top:18px;
+      transform:translateX(-50%) translateY(-20px);
+      z-index:1000;
+      padding:12px 18px;
+      border-radius:18px;
+      background:#0b101a;
+      border:2px solid var(--cyan);
+      box-shadow:0 0 18px rgba(0,234,255,.22);
+      opacity:0;
+      visibility:hidden;
+      transition:.2s ease;
+      font-weight:900;
+    }
+
+    .toast.show{
+      opacity:1;
+      visibility:visible;
+      transform:translateX(-50%) translateY(0);
+    }
+
+
+    /* =========================================================
+       UNIVERSAL BUTTON ANIMATION SYSTEM
+       Applies a consistent Darkmode interaction language to all
+       controls while preserving each button's original function.
+       ========================================================= */
+    button{
+      position:relative;
+      overflow:hidden;
+      cursor:pointer;
+      touch-action:manipulation;
+      transition:
+        transform .14s cubic-bezier(.2,.8,.2,1),
+        box-shadow .14s ease,
+        filter .14s ease,
+        border-color .14s ease,
+        background-color .14s ease;
+    }
+
+    button:focus-visible{
+      outline:none;
+      box-shadow:
+        0 0 0 3px rgba(255,255,255,.2),
+        0 0 0 6px rgba(0,234,255,.25),
+        0 0 24px rgba(255,61,187,.28);
+    }
+
+    button.dm-pressed{
+      transform:scale(.9)!important;
+      filter:brightness(1.55) saturate(1.2);
+    }
+
+    button.dm-success{
+      animation:buttonSuccess .55s ease;
+    }
+
+    button.dm-warning{
+      animation:buttonWarning .55s ease;
+    }
+
+    button.dm-reading{
+      animation:buttonRead 1s ease-in-out infinite;
+    }
+
+    .dm-ripple{
+      position:absolute;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      pointer-events:none;
+      background:
+        radial-gradient(
+          circle,
+          rgba(255,255,255,.95) 0 10%,
+          rgba(0,234,255,.75) 18%,
+          rgba(124,92,255,.55) 38%,
+          rgba(255,61,187,.35) 58%,
+          transparent 72%
+        );
+      transform:translate(-50%,-50%) scale(0);
+      animation:rippleBurst .58s ease-out forwards;
+      z-index:5;
+    }
+
+    .dm-spark{
+      position:fixed;
+      z-index:1200;
+      pointer-events:none;
+      font-size:1.25rem;
+      animation:sparkFly .7s ease-out forwards;
+      filter:drop-shadow(0 0 8px rgba(255,255,255,.45));
+    }
+
+    @keyframes rippleBurst{
+      0%{
+        opacity:1;
+        transform:translate(-50%,-50%) scale(.2);
+      }
+      100%{
+        opacity:0;
+        transform:translate(-50%,-50%) scale(7);
+      }
+    }
+
+    @keyframes sparkFly{
+      0%{
+        opacity:1;
+        transform:translate(-50%,-50%) scale(.5) rotate(0deg);
+      }
+      100%{
+        opacity:0;
+        transform:
+          translate(
+            calc(-50% + var(--sx, 0px)),
+            calc(-50% + var(--sy, -45px))
+          )
+          scale(1.45)
+          rotate(35deg);
+      }
+    }
+
+    @keyframes buttonSuccess{
+      0%{transform:scale(1)}
+      35%{
+        transform:scale(1.12);
+        box-shadow:
+          0 0 26px var(--lime),
+          0 0 42px rgba(0,234,255,.4);
+      }
+      100%{transform:scale(1)}
+    }
+
+    @keyframes buttonWarning{
+      0%{transform:rotate(0deg)}
+      20%{transform:rotate(-7deg)}
+      40%{transform:rotate(7deg)}
+      60%{transform:rotate(-4deg)}
+      80%{transform:rotate(4deg)}
+      100%{transform:rotate(0deg)}
+    }
+
+    @keyframes buttonRead{
+      0%,100%{
+        box-shadow:0 0 10px rgba(0,234,255,.16);
+      }
+      50%{
+        box-shadow:
+          0 0 24px var(--cyan),
+          0 0 38px rgba(124,92,255,.4);
+      }
+    }
+
+    /* Button-specific icon motion */
+    .icon-btn.dm-pressed{
+      transform:scale(.9) rotate(-8deg)!important;
+    }
+
+    #exportBtn.dm-success{
+      animation:exportPulse .6s ease;
+    }
+
+    @keyframes exportPulse{
+      0%{transform:translateY(0)}
+      40%{
+        transform:translateY(5px) scale(1.08);
+        box-shadow:0 0 28px var(--lime);
+      }
+      100%{transform:translateY(0)}
+    }
+
+    #emojiBtn.dm-success,
+    #stickerBtn.dm-success{
+      animation:libraryPop .45s ease;
+    }
+
+    @keyframes libraryPop{
+      0%{transform:scale(1)}
+      50%{transform:scale(1.13) rotate(-3deg)}
+      100%{transform:scale(1)}
+    }
+
+    #lockBtn.locked{
+      animation:lockGlow 1.3s ease-in-out infinite;
+    }
+
+    @keyframes lockGlow{
+      0%,100%{
+        box-shadow:0 0 14px rgba(255,228,92,.28)!important;
+      }
+      50%{
+        box-shadow:
+          0 0 24px var(--yellow),
+          0 0 34px rgba(255,61,187,.25)!important;
+      }
+    }
+
+    /* Makes disabled buttons visually clear if added later */
+    button:disabled{
+      opacity:.4;
+      cursor:not-allowed;
+      filter:grayscale(.35);
+    }
+
+    /* =========================================================
+       SMALL-SCREEN ADJUSTMENTS
+       Keeps the footer controls usable on narrower displays.
+       ========================================================= */
+    @media(max-width:520px){
+      .dock{
+        grid-template-columns:1fr 1fr 1.25fr 1fr 1fr;
+        padding:10px;
+      }
+
+      .dock-btn{
+        font-size:1.25rem;
+      }
+
+      .mic{
+        width:76px;
+        height:76px;
+      }
+    }
+
+/* =============================================================
+   VERSION 9: NATIVE EMOJI KEYBOARD PANEL
+   A real text input triggers the device keyboard. The operating
+   system controls whether its emoji page opens automatically.
+   ============================================================= */
+.native-emoji-panel{
+  padding:16px;
+}
+.native-emoji-input{
+  width:100%;
+  min-height:64px;
+  padding:14px 16px;
+  border:2px solid rgba(0,234,255,.45);
+  border-radius:18px;
+  background:#090d17;
+  color:#fff;
+  font-size:2rem;
+  outline:none;
+  box-shadow:0 0 18px rgba(0,234,255,.13);
+}
+.native-emoji-input:focus{
+  border-color:var(--pink);
+  box-shadow:0 0 24px rgba(255,61,187,.28);
+}
+.native-emoji-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:10px 0 16px;
+}
+.native-emoji-add,
+.native-emoji-close{
+  min-height:52px;
+  border-radius:16px;
+  border:2px solid #29344b;
+  background:#101624;
+  color:#fff;
+  font-weight:900;
+}
+.native-emoji-add{
+  border-color:var(--cyan);
+}
+.fallback-title{
+  margin-top:6px;
+}
+.sticker-image{
+  width:92px;
+  height:92px;
+  object-fit:contain;
+  user-select:none;
+  touch-action:none;
+  filter:drop-shadow(0 0 12px rgba(255,255,255,.26));
+}
+.pick img{
+  width:48px;
+  height:48px;
+  object-fit:contain;
+  pointer-events:none;
+}
