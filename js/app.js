@@ -1084,16 +1084,6 @@
       }
     };
 
-        utterance.onerror = () => {
-          readButton.classList.remove('dm-reading');
-        };
-
-        speechSynthesis.speak(utterance);
-      }else{
-        readButton.classList.remove('dm-reading');
-      }
-    };
-
     /* =========================================================
        RESET STORY CANVAS
        Clears:
