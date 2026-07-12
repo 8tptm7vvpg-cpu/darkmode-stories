@@ -329,7 +329,7 @@
       modeBadge.textContent = drawModeActive ? 'Draw Mode' : 'Move Canvas';
 
       hint.innerHTML = drawModeActive
-        ? 'Drag your finger to paint with the big black brush.'
+        ? 'Drag your finger to paint with the black brush.'
         : 'Drag to move around the larger colorful Story Canvas.';
     }
 
@@ -355,7 +355,7 @@
       /* Draw Mode now paints an oversized black brush stroke. */
       ctx.strokeStyle = '#050509';
       ctx.fillStyle = '#050509';
-      ctx.lineWidth = 72;
+      ctx.lineWidth = 36;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
     }
@@ -592,14 +592,55 @@
       hint.style.opacity = '0';
 
       const element = document.createElement('div');
-      element.className = 'message';
+      element.className = 'message message-arrival';
       element.textContent = cleanText;
 
-      const baseX = 850 + (messageCount % 2) * 70;
-      const baseY = 180 + messageCount * 165;
+      /* Convert a point inside the visible viewport into artboard
+         coordinates so each new bubble is immediately on-screen. */
+      const viewportRect = viewport.getBoundingClientRect();
+      const artboardRect = artboard.getBoundingClientRect();
 
-      element.style.left = Math.min(baseX, 960) + 'px';
-      element.style.top = Math.min(baseY, 940) + 'px';
+      const visibleAnchorX =
+        viewportRect.left + viewportRect.width * .5;
+
+      const visibleAnchorY =
+        viewportRect.top + viewportRect.height * .38;
+
+      const artboardScaleX = 1600 / artboardRect.width;
+      const artboardScaleY = 1200 / artboardRect.height;
+
+      let messageX =
+        (visibleAnchorX - artboardRect.left) * artboardScaleX;
+
+      let messageY =
+        (visibleAnchorY - artboardRect.top) * artboardScaleY;
+
+      /* Alternate bubbles slightly left and right and stack them
+         downward without placing them outside the visible area. */
+      const horizontalOffset =
+        messageCount % 2 === 0 ? -120 : 10;
+
+      const verticalOffset =
+        (messageCount % 4) * 38;
+
+      messageX += horizontalOffset;
+      messageY += verticalOffset;
+
+      const estimatedWidth = 620;
+      const estimatedHeight = 150;
+
+      messageX = Math.max(
+        24,
+        Math.min(messageX, 1600 - estimatedWidth - 24)
+      );
+
+      messageY = Math.max(
+        24,
+        Math.min(messageY, 1200 - estimatedHeight - 24)
+      );
+
+      element.style.left = messageX + 'px';
+      element.style.top = messageY + 'px';
 
       contentLayer.appendChild(element);
       makeDraggable(element);
