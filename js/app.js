@@ -125,6 +125,7 @@
     const emojiLibrary = document.getElementById('emojiLibrary');
     const stickerLibrary = document.getElementById('stickerLibrary');
     const toast = document.getElementById('toast');
+    const drawTarget = document.getElementById('drawTarget');
 
     /* =========================================================
        APP STATE
@@ -328,8 +329,8 @@
       modeBadge.textContent = drawModeActive ? 'Draw Mode' : 'Move Canvas';
 
       hint.innerHTML = drawModeActive
-        ? 'Drag your finger to erase the black layer and reveal color.'
-        : 'Drag to move around the larger artboard.';
+        ? 'Drag your finger to paint with the big black brush.'
+        : 'Drag to move around the larger colorful Story Canvas.';
     }
 
     lockBtn.onclick = event => {
@@ -346,12 +347,15 @@
       scratch.width = 1600;
       scratch.height = 1200;
 
+      /* Start with a completely transparent drawing layer so the
+         bright gradient artboard is immediately visible. */
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = '#050609';
-      ctx.fillRect(0, 0, scratch.width, scratch.height);
+      ctx.clearRect(0, 0, scratch.width, scratch.height);
 
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = 48;
+      /* Draw Mode now paints an oversized black brush stroke. */
+      ctx.strokeStyle = '#050509';
+      ctx.fillStyle = '#050509';
+      ctx.lineWidth = 72;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
     }
@@ -392,6 +396,17 @@
       };
     }
 
+    /* Positions the oversized brush target inside the visible viewport. */
+    function moveDrawTarget(event){
+      const viewportRect = viewport.getBoundingClientRect();
+
+      drawTarget.style.left =
+        (event.clientX - viewportRect.left) + 'px';
+
+      drawTarget.style.top =
+        (event.clientY - viewportRect.top) + 'px';
+    }
+
     /* =========================================================
        POINTER INTERACTION
        Uses the same finger/mouse drag gesture for:
@@ -417,6 +432,14 @@
         const point = artPoint(event);
         lastX = point.x;
         lastY = point.y;
+
+        /* Paint a round dot immediately, even before the finger moves. */
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        moveDrawTarget(event);
+        drawTarget.classList.add('show');
       }
     });
 
@@ -437,17 +460,28 @@
 
         lastX = point.x;
         lastY = point.y;
+
+        moveDrawTarget(event);
       }
     });
 
-    viewport.addEventListener('pointerup', event => {
+    function finishPointer(event){
       pointerActive = false;
       drawing = false;
+      drawTarget.classList.remove('show');
 
       try{
         viewport.releasePointerCapture(event.pointerId);
       }catch(error){
         /* Safe fallback if the pointer was already released */
+      }
+    }
+
+    viewport.addEventListener('pointerup', finishPointer);
+    viewport.addEventListener('pointercancel', finishPointer);
+    viewport.addEventListener('pointerleave', event => {
+      if(drawing){
+        finishPointer(event);
       }
     });
 
@@ -503,6 +537,8 @@
         event.stopPropagation();
 
         drag = true;
+        element.classList.add('is-dragging');
+        element.style.zIndex = '100';
         element.setPointerCapture(event.pointerId);
 
         const rect = element.getBoundingClientRect();
@@ -531,6 +567,8 @@
 
       element.addEventListener('pointerup', event => {
         drag = false;
+        element.classList.remove('is-dragging');
+        element.style.zIndex = '12';
 
         try{
           element.releasePointerCapture(event.pointerId);
@@ -557,11 +595,11 @@
       element.className = 'message';
       element.textContent = cleanText;
 
-      const baseX = 920 + (messageCount % 2) * 50;
-      const baseY = 220 + messageCount * 120;
+      const baseX = 850 + (messageCount % 2) * 70;
+      const baseY = 180 + messageCount * 165;
 
-      element.style.left = Math.min(baseX, 1080) + 'px';
-      element.style.top = Math.min(baseY, 980) + 'px';
+      element.style.left = Math.min(baseX, 960) + 'px';
+      element.style.top = Math.min(baseY, 940) + 'px';
 
       contentLayer.appendChild(element);
       makeDraggable(element);
@@ -738,6 +776,7 @@
 
       contentLayer.innerHTML = '';
       hint.style.opacity = '1';
+      drawTarget.classList.remove('show');
 
       setMode('pan');
     };
@@ -746,7 +785,7 @@
        EXPORT FULL ARTBOARD AS JPG
        Renders:
        - Rainbow background
-       - Scratch-off black layer
+       - Thick black brush artwork
        - Messages
        - Emojis and stickers
 
@@ -788,8 +827,8 @@
         const y = parseFloat(element.style.top) || 0;
 
         if(element.classList.contains('message')){
-          const width = 500;
-          const height = 90;
+          const width = 620;
+          const height = 132;
 
           outputContext.fillStyle = 'rgba(8,12,22,.92)';
           roundRect(outputContext, x, y, width, height, 22);
@@ -801,7 +840,7 @@
           outputContext.stroke();
 
           outputContext.fillStyle = '#ffffff';
-          outputContext.font = '32px Arial';
+          outputContext.font = '900 46px Arial';
 
           wrapText(
             outputContext,
@@ -809,7 +848,7 @@
             x + 20,
             y + 40,
             width - 40,
-            38
+            52
           );
         }
 
@@ -827,6 +866,40 @@
           );
         }
       });
+
+      /* Add a branded screenshot footer and centered watermark. */
+      const watermarkHeight = 82;
+
+      outputContext.fillStyle = 'rgba(2,2,4,.88)';
+      outputContext.fillRect(
+        0,
+        outputCanvas.height - watermarkHeight,
+        outputCanvas.width,
+        watermarkHeight
+      );
+
+      const watermarkGradient = outputContext.createLinearGradient(
+        520,
+        0,
+        1080,
+        0
+      );
+
+      watermarkGradient.addColorStop(0, '#00eaff');
+      watermarkGradient.addColorStop(.3, '#7c5cff');
+      watermarkGradient.addColorStop(.55, '#ff3dbb');
+      watermarkGradient.addColorStop(.78, '#ffe45c');
+      watermarkGradient.addColorStop(1, '#8cff54');
+
+      outputContext.fillStyle = watermarkGradient;
+      outputContext.font = '900 38px Arial';
+      outputContext.textAlign = 'center';
+      outputContext.textBaseline = 'middle';
+      outputContext.fillText(
+        'DARKMODE STORIES',
+        outputCanvas.width / 2,
+        outputCanvas.height - watermarkHeight / 2
+      );
 
       /* Starts a browser JPG download */
       const downloadLink = document.createElement('a');
