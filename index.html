@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- DARKMODE STORIES V9
+       Main document shell. Visual styling and behavior are separated
+       into /css and /js so the project can grow cleanly in GitHub. -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#020204">
+  <title>DARKMODE STORIES</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<!-- =========================================================
+       PARALLAX BACKGROUND SCENE
+       Decorative layers move at different speeds as the artboard
+       is panned, creating depth behind the entire interface.
+       ========================================================= -->
+  <div class="parallax-scene" aria-hidden="true">
+    <div class="parallax-layer parallax-far"></div>
+    <div class="parallax-layer parallax-mid"></div>
+    <div class="parallax-layer parallax-near"></div>
+  </div>
+
+  <!-- =========================================================
+       TOAST MESSAGE
+       Displays brief status confirmations such as JPG export.
+       ========================================================= -->
+  <div class="toast" id="toast">Saved as JPG</div>
+
+  <!-- =========================================================
+       FULL-SCREEN INTRO SEQUENCE
+       Visual order:
+       1. DARKMODE
+       2. PRESENTS
+       3. STORIES
+       4. Gradient divider
+       5. DARKMODEWORKS.COM
+       ========================================================= -->
+  <section class="intro">
+    <div class="intro-card">
+      <div class="intro-darkmode">DARKMODE</div>
+      <div class="intro-presents">PRESENTS</div>
+      <div class="intro-stories">STORIES</div>
+      <div class="intro-divider"></div>
+      <div class="intro-url">DARKMODEWORKS.COM</div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       MAIN APPLICATION
+       Contains the header, Story Canvas, and floating control dock.
+       ========================================================= -->
+  <main class="app">
+
+    <!-- =======================================================
+         HEADER
+         Left button resets the canvas.
+         Right button exports the full artboard as a JPG.
+         ======================================================= -->
+    <header class="topbar">
+      <button class="icon-btn" id="resetBtn" aria-label="Reset">↺</button>
+      <h1>My Stories</h1>
+      <button class="icon-btn" id="exportBtn" aria-label="Save JPG">⬇️</button>
+    </header>
+
+    <!-- =======================================================
+         STORY CANVAS VIEWPORT
+         The user sees only part of the larger artboard at once.
+         ======================================================= -->
+    <section class="viewport-wrap">
+      <div class="viewport" id="viewport">
+
+        <!-- Shows the current interaction mode -->
+        <div class="mode-badge" id="modeBadge">Move Canvas</div>
+
+        <!-- Intro instructions inside the workspace -->
+        <div class="hint" id="hint">
+          Drag to move the artboard.<br>
+          Tap the lock to draw and reveal the rainbow.
+        </div>
+
+        <!-- Larger movable Story Canvas -->
+        <div class="artboard" id="artboard">
+
+          <!-- Black scratch-off foreground -->
+          <canvas class="scratch" id="scratch"></canvas>
+
+          <!-- Holds draggable messages, emojis, and stickers -->
+          <div class="content-layer" id="contentLayer"></div>
+        </div>
+
+        <!-- Shows live speech-to-text while listening -->
+        <div class="dictation" id="dictation">
+          <small>Listening</small>
+          <span id="liveText">Start talking...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         FLOATING TOOL AREA
+         Includes hidden emoji/sticker libraries and the dock.
+         ======================================================= -->
+    <section class="dock-space">
+
+      <!-- ===================================================
+           NATIVE EMOJI KEYBOARD PANEL
+           The webpage focuses this real text input so the device's
+           normal keyboard opens. On the Fire tablet, Penny can tap
+           the keyboard's own emoji/smiley key and choose any emoji
+           installed on the device.
+           =================================================== -->
+      <div class="library native-emoji-panel" id="emojiLibrary">
+        <div class="library-title">Use the smiley key on your keyboard</div>
+        <input
+          id="nativeEmojiInput"
+          class="native-emoji-input"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="off"
+          aria-label="Choose an emoji using the device keyboard"
+          placeholder="Tap the keyboard emoji key…"
+        >
+        <div class="native-emoji-actions">
+          <button class="native-emoji-add" id="addNativeEmojiBtn">Add to Story</button>
+          <button class="native-emoji-close" id="closeNativeEmojiBtn">Close</button>
+        </div>
+        <div class="library-title fallback-title">Quick emojis</div>
+        <div class="grid" id="emojiGrid"></div>
+      </div>
+
+      <!-- Sticker picker popup -->
+      <div class="library" id="stickerLibrary">
+        <div class="library-title">Choose a sticker</div>
+        <div class="grid" id="stickerGrid"></div>
+      </div>
+
+      <!-- Floating control dock -->
+      <nav class="dock">
+        <button class="dock-btn" id="emojiBtn" aria-label="Open emoji library">😀</button>
+        <button class="dock-btn" id="lockBtn" aria-label="Switch canvas mode">🔓</button>
+        <button class="mic" id="micBtn" aria-label="Start or stop talking">🎤</button>
+        <button class="dock-btn" id="stickerBtn" aria-label="Open sticker library">⭐</button>
+        <button class="dock-btn" id="readBtn" aria-label="Read story aloud">🔊</button>
+      </nav>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
