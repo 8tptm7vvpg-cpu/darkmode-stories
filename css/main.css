@@ -1412,3 +1412,61 @@ body{
     filter:blur(0);
   }
 }
+
+
+/* =============================================================
+   VERSION 13 — SPEECH COMPATIBILITY
+   Android uses deduplicated single-utterance recognition.
+   Silk uses an explicit keyboard-dictation fallback instead of
+   displaying a microphone state that never actually starts.
+   ============================================================= */
+.speech-fallback{
+  display:none;
+  margin-top:12px;
+}
+.speech-fallback.show{
+  display:block;
+}
+.speech-fallback-input{
+  width:100%;
+  min-height:94px;
+  resize:none;
+  padding:14px 16px;
+  border-radius:18px;
+  border:3px solid rgba(0,234,255,.48);
+  outline:none;
+  background:#080c16;
+  color:#fff;
+  font:900 clamp(1.3rem,5vw,1.8rem)/1.25 Arial,sans-serif;
+  box-shadow:0 0 18px rgba(0,234,255,.16);
+}
+.speech-fallback-input:focus{
+  border-color:var(--pink);
+  box-shadow:
+    0 0 20px rgba(255,61,187,.3),
+    0 0 32px rgba(0,234,255,.16);
+}
+.speech-fallback-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:10px;
+}
+.speech-fallback-actions button{
+  min-height:54px;
+  border-radius:17px;
+  border:2px solid #2a334a;
+  background:#101624;
+  color:#fff;
+  font-weight:950;
+}
+#speechFallbackAdd{
+  border-color:var(--cyan);
+}
+.mic.unsupported{
+  opacity:.92;
+  border-color:transparent;
+  box-shadow:
+    0 0 18px rgba(255,228,92,.38),
+    0 0 28px rgba(255,61,187,.18);
+}
