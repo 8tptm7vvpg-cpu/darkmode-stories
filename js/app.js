@@ -721,6 +721,21 @@
     let lastCommittedTranscript = '';
     let recognitionWatchdog = null;
     let resultCommitted = false;
+    let liveTranscriptDraft = '';
+    let speechSessionId = 0;
+    let endingSessionId = 0;
+
+    function setLiveTranscript(text){
+      liveTranscriptDraft = (text || '').trim();
+
+      liveText.textContent =
+        liveTranscriptDraft || 'Start talking...';
+
+      dictation.classList.toggle(
+        'has-speech',
+        Boolean(liveTranscriptDraft)
+      );
+    }
 
     function normalizeTranscript(text){
       return text
@@ -739,6 +754,7 @@
 
       micBtn.classList.remove('listening');
       micBtn.textContent = '🎤';
+      dictation.classList.remove('has-speech');
     }
 
     function closeSpeechFallback(){
@@ -765,21 +781,30 @@
     }
 
     function commitRecognitionText(text){
-      const cleanText = text.trim();
+      const cleanText = (text || '').trim();
       const normalized = normalizeTranscript(cleanText);
 
-      if(
-        !cleanText ||
-        !normalized ||
-        normalized === lastCommittedTranscript
-      ){
+      if(!cleanText || !normalized){
         return false;
       }
 
+      /* Prevent duplicate commits inside the same stop/end cycle. */
+      if(resultCommitted){
+        return false;
+      }
+
+      /* Prevent the same phrase from being committed twice across
+         back-to-back browser callbacks. */
+      if(normalized === lastCommittedTranscript){
+        return false;
+      }
+
+      resultCommitted = true;
       lastCommittedTranscript = normalized;
       addMessage(cleanText);
       return true;
     }
+
 
     function stopAllSpeechActivity(options = {}){
       const {
@@ -809,6 +834,43 @@
         speechFallback.classList.remove('show');
         dictation.classList.remove('show');
       }
+    }
+
+    function stopAndCommitRecognition(){
+      if(!recognition){
+        resetMicVisualState();
+        return;
+      }
+
+      endingSessionId = speechSessionId;
+
+      /* Commit the latest visible draft immediately. iOS sometimes
+         delays onend or never promotes interim text to a final result. */
+      const textToCommit =
+        liveTranscriptDraft ||
+        finalTranscript ||
+        liveText.textContent;
+
+      commitRecognitionText(textToCommit);
+
+      clearTimeout(recognitionWatchdog);
+      recognitionWatchdog = null;
+
+      try{
+        recognition.stop();
+      }catch(error){
+        try{
+          recognition.abort();
+        }catch(abortError){
+          /* Browser already ended the session. */
+        }
+      }
+
+      resetMicVisualState();
+      dictation.classList.remove('show');
+      finalTranscript = '';
+      liveTranscriptDraft = '';
+      setLiveTranscript('');
     }
 
     function stopRecognitionSession(useAbort = false){
@@ -850,6 +912,9 @@
         recognitionStarting = false;
         resultCommitted = false;
         finalTranscript = '';
+        liveTranscriptDraft = '';
+        speechSessionId += 1;
+        endingSessionId = 0;
 
         micBtn.classList.remove('unsupported');
         micBtn.classList.add('listening');
@@ -859,7 +924,7 @@
         dictation.classList.add('show');
         dictationLabel.textContent =
           isAndroid ? 'Listening — one phrase' : 'Listening';
-        liveText.textContent = 'Start talking...';
+        setLiveTranscript('');
       };
 
       recognition.onresult = event => {
@@ -881,7 +946,7 @@
               seenFinals.add(normalized);
               uniqueFinals.push(transcript);
             }
-          }else if(!isAndroid){
+          }else{
             interimText = transcript;
           }
         }
@@ -894,11 +959,16 @@
           );
         }
 
-        liveText.textContent =
-          (finalTranscript || interimText || 'Start talking...').trim();
+        /* Always retain the best available phrase. On iPhone Chrome,
+           interim text may be all we receive before the stop tap. */
+        setLiveTranscript(
+          finalTranscript ||
+          interimText ||
+          liveTranscriptDraft
+        );
 
         if(isAndroid && finalTranscript && !resultCommitted){
-          resultCommitted = commitRecognitionText(finalTranscript);
+          commitRecognitionText(finalTranscript);
         }
       };
 
@@ -909,15 +979,19 @@
       };
 
       recognition.onend = () => {
-        const textToCommit = finalTranscript.trim();
+        const textToCommit =
+          liveTranscriptDraft ||
+          finalTranscript;
 
         if(textToCommit && !resultCommitted){
-          resultCommitted = commitRecognitionText(textToCommit);
+          commitRecognitionText(textToCommit);
         }
 
         resetMicVisualState();
         dictation.classList.remove('show');
         finalTranscript = '';
+        liveTranscriptDraft = '';
+        setLiveTranscript('');
       };
 
       recognition.onerror = event => {
@@ -976,7 +1050,12 @@
         return;
       }
 
-      if(listening || recognitionStarting){
+      if(listening){
+        stopAndCommitRecognition();
+        return;
+      }
+
+      if(recognitionStarting){
         stopRecognitionSession(true);
         resetMicVisualState();
         dictation.classList.remove('show');
@@ -986,6 +1065,8 @@
       recognitionStarting = true;
       resultCommitted = false;
       finalTranscript = '';
+      liveTranscriptDraft = '';
+      setLiveTranscript('');
 
       micBtn.classList.add('listening');
       micBtn.textContent = '■';
@@ -1004,7 +1085,7 @@
         }else{
           dictation.classList.remove('show');
         }
-      }, 3500);
+      }, isAndroid ? 3500 : 5000);
 
       try{
         recognition.start();
