@@ -347,10 +347,19 @@
 
       const drawModeActive = mode === 'draw';
 
-      lockBtn.textContent = drawModeActive ? '🔒' : '🔓';
+      /* The icon shows the action available next. */
+      lockBtn.textContent = drawModeActive ? '↔️' : '🖌️';
+      lockBtn.setAttribute(
+        'aria-label',
+        drawModeActive
+          ? 'Switch to Story Mode'
+          : 'Switch to Draw Mode'
+      );
+
       lockBtn.classList.toggle('locked', drawModeActive);
 
-      modeBadge.textContent = drawModeActive ? 'Draw Mode' : 'Move Storyboard';
+      modeBadge.textContent =
+        drawModeActive ? 'DRAW MODE' : 'STORY MODE';
 
       hint.innerHTML = drawModeActive
         ? 'Drag your finger to paint with the black brush.'
