@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.6] - 2026-07-15
+
+### Changed
+
+- Replaced the Storyboard header title with a one-line DARKMODE STORIES wordmark.
+- DARKMODE uses the restrained studio styling from the intro.
+- STORIES uses the continuously animated Darkmode gradient.
+- Renamed Move Canvas and Move Storyboard labels to STORY MODE.
+- The mode toggle shows a paint brush in STORY MODE.
+- The mode toggle shows a move-arrow icon in DRAW MODE.
+- Updated the mode toggle accessibility labels.
+
 ## [0.14.5] - 2026-07-12
 
 ### Fixed
