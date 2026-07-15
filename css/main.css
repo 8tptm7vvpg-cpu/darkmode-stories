@@ -1558,3 +1558,54 @@ body{
     0 0 22px rgba(140,255,84,.28),
     0 0 34px rgba(0,234,255,.18);
 }
+
+
+/* =============================================================
+   VERSION 14.6 — HEADER BRANDING + MODE ICON LANGUAGE
+   ============================================================= */
+.brand-header{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:.34em;
+  white-space:nowrap;
+  line-height:1;
+}
+.brand-header-darkmode{
+  color:#f7f8ff;
+  font-weight:1000;
+  letter-spacing:-.045em;
+  text-shadow:
+    0 0 8px rgba(255,255,255,.25),
+    0 0 18px rgba(0,234,255,.16);
+}
+.brand-header-stories{
+  font-weight:1000;
+  letter-spacing:-.045em;
+  background:
+    linear-gradient(
+      90deg,
+      var(--cyan),
+      var(--purple),
+      var(--pink),
+      var(--orange),
+      var(--yellow),
+      var(--lime),
+      var(--cyan)
+    );
+  background-size:240% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  filter:drop-shadow(0 0 10px rgba(124,92,255,.3));
+  animation:headerGradientFlow 3.4s linear infinite;
+}
+@keyframes headerGradientFlow{
+  to{background-position:240% 0;}
+}
+@media(max-width:520px){
+  .brand-header{
+    gap:.28em;
+    font-size:clamp(1.15rem,5.4vw,1.55rem);
+  }
+}
