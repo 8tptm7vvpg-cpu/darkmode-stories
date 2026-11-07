@@ -720,6 +720,8 @@
        - A startup watchdog prevents the mic from getting stuck on.
        ========================================================= */
     const userAgent = navigator.userAgent || '';
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(userAgent) ||
+      (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
     const isAndroid = /Android/i.test(userAgent);
     const isSilk = /Silk\//i.test(userAgent);
 
@@ -1145,8 +1147,8 @@
 
     /* =========================================================
        TEXT-TO-SPEECH COMPATIBILITY
-       Queue short utterances directly from the Read Aloud button
-       so browsers that require a user gesture can begin playback.
+       Start the first utterance on the tap and play one chunk at a
+       time so a voice failure cannot strand the whole speech queue.
        ========================================================= */
     function splitSpeechText(text, maximumLength = 150){
       const sentences = text
@@ -1197,68 +1199,168 @@
       return chunks;
     }
 
+    const speechEngine = window.speechSynthesis;
+    // Some browsers load the device voice list after the first request.
+    speechEngine?.getVoices();
+
     let activeReading = null;
 
-    function finishReadAloud(reading){
+    function preferredStoryVoices(){
+      const englishVoices = speechEngine.getVoices().filter(voice =>
+        voice.localService && /^en(?:-|$)/i.test(voice.lang)
+      );
+      const rank = voice => (/^en-US$/i.test(voice.lang) ? 2 : 0) + Number(voice.default);
+      return englishVoices.sort((first, second) => rank(second) - rank(first));
+    }
+
+    function finishReadAloud(reading, cancel = false){
       if(activeReading !== reading){
-        return false;
+        return;
       }
 
-      clearTimeout(reading.startWatchdog);
-      reading.button.classList.remove('dm-reading');
       activeReading = null;
-      return true;
+      clearTimeout(reading.timer);
+      reading.button.classList.remove('dm-reading');
+      reading.button.setAttribute('aria-pressed', 'false');
+      if(cancel){
+        speechEngine.cancel();
+      }
+      if(reading.previousAudioType !== undefined){
+        navigator.audioSession.type = reading.previousAudioType;
+      }
     }
 
     function stopReadAloud(){
-      if(activeReading && finishReadAloud(activeReading)){
-        window.speechSynthesis.cancel();
+      if(activeReading){
+        finishReadAloud(activeReading, true);
       }
     }
 
     function speakStoryText(text, readButton){
-      const engine = window.speechSynthesis;
-      if(!engine || typeof SpeechSynthesisUtterance === 'undefined'){
+      if(!speechEngine || typeof SpeechSynthesisUtterance === 'undefined'){
         showToast('Read Aloud is unavailable in this browser.');
         return;
       }
 
-      const utterances = splitSpeechText(text).map(chunk => {
-        const utterance = new SpeechSynthesisUtterance(chunk);
-        utterance.lang = 'en-US';
-        utterance.rate = .88;
-        utterance.pitch = 1.05;
-        return utterance;
-      });
-      // Keep the utterances alive until the browser finishes its queue.
-      const reading = { button:readButton, utterances, startWatchdog:null };
+      const chunks = splitSpeechText(text);
+      const reading = { button:readButton, timer:null, utterance:null, previousAudioType:undefined };
       activeReading = reading;
       readButton.classList.add('dm-reading');
+      readButton.setAttribute('aria-pressed', 'true');
 
-      const failReading = () => {
-        if(activeReading === reading){
-          stopReadAloud();
-          showToast('Read Aloud could not start. Tap to try again.');
-        }
-      };
-
-      for(const utterance of utterances){
-        utterance.onstart = () => clearTimeout(reading.startWatchdog);
-        utterance.onerror = failReading;
-      }
-      utterances[utterances.length - 1].onend = () => finishReadAloud(reading);
-      reading.startWatchdog = setTimeout(failReading, 5000);
-
+      // Request media playback on browsers that expose the audio session.
+      // Restore the prior category before the microphone is used again.
       try{
-        if(engine.paused){
-          engine.resume();
-        }
-        for(const utterance of utterances){
-          engine.speak(utterance);
+        if(navigator.audioSession){
+          const previousType = navigator.audioSession.type;
+          navigator.audioSession.type = 'playback';
+          reading.previousAudioType = previousType;
         }
       }catch(error){
-        failReading();
+        console.debug('Could not set the playback audio session:', error);
       }
+
+      let chunkIndex = 0;
+      let voice = preferredStoryVoices()[0] ?? null;
+      let reportedStart = false;
+
+      function speakChunk(retrying = false){
+        if(activeReading !== reading){
+          return;
+        }
+
+        const chunk = chunks[chunkIndex];
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        utterance.lang = voice?.lang || 'en-US';
+        if(voice){
+          utterance.voice = voice;
+        }
+        utterance.rate = .88;
+        utterance.volume = 1;
+        reading.utterance = utterance;
+        const isCurrent = () => activeReading === reading && reading.utterance === utterance;
+        const submittedAt = Date.now();
+
+        function failChunk(reason){
+          if(!isCurrent()){
+            return;
+          }
+
+          if(retrying || reason === 'not-allowed'){
+            finishReadAloud(reading, true);
+            showToast(reason === 'not-allowed'
+              ? 'This browser blocked speech. Tap the speaker again.'
+              : 'Read Aloud could not play. Tap the speaker to try again.');
+            return;
+          }
+
+          clearTimeout(reading.timer);
+          reading.utterance = null;
+          const alternate = preferredStoryVoices().find(candidate => !voice ||
+            (candidate.voiceURI || candidate.name) !== (voice.voiceURI || voice.name));
+          voice = alternate ?? null;
+          showToast('Retrying Read Aloud…');
+          // Let the browser finish its current speech callback before
+          // resetting its queue and submitting another utterance.
+          reading.timer = setTimeout(() => {
+            if(activeReading === reading){
+              speechEngine.cancel();
+              speakChunk(true);
+            }
+          }, 0);
+        }
+
+        utterance.onstart = () => {
+          if(!isCurrent()){
+            return;
+          }
+
+          clearTimeout(reading.timer);
+          reading.timer = setTimeout(() => failChunk('timeout'), Math.max(15000, chunk.length * 160 + 10000));
+          if(!reportedStart){
+            reportedStart = true;
+            showToast('Reading story…');
+          }
+        };
+
+        utterance.onerror = event => failChunk(event.error);
+        utterance.onend = () => {
+          if(!isCurrent()){
+            return;
+          }
+
+          // Some voices report completion immediately without speaking.
+          if(chunk.length >= 4 && /\p{L}/u.test(chunk) && Date.now() - submittedAt < 150){
+            failChunk('empty-playback');
+            return;
+          }
+
+          clearTimeout(reading.timer);
+          reading.utterance = null;
+          chunkIndex += 1;
+          if(chunkIndex < chunks.length){
+            reading.timer = setTimeout(speakChunk, 0);
+          }else{
+            finishReadAloud(reading);
+          }
+        };
+
+        reading.timer = setTimeout(() => failChunk('timeout'), isAppleMobile ? 11000 : 6500);
+        try{
+          if(speechEngine.paused){
+            speechEngine.resume();
+          }
+          speechEngine.speak(utterance);
+        }catch(error){
+          failChunk(error.name === 'NotAllowedError' ? 'not-allowed' : 'synthesis-failed');
+        }
+      }
+
+      showToast('Starting Read Aloud…');
+      if(speechEngine.speaking || speechEngine.pending){
+        speechEngine.cancel();
+      }
+      speakChunk();
     }
 
     /* =========================================================
@@ -1311,7 +1413,8 @@
             element.textContent
           ).trim()
         )
-        .join('. ');
+        .map(words => /[.!?]$/.test(words) ? words : words + '.')
+        .join(' ');
 
       if(!storyText){
         animateButton(readButton, 'warning');
@@ -1354,72 +1457,179 @@
        Renders the complete spread, including drawings, text,
        emojis, stickers and photos.
        ========================================================= */
-    function renderJPG(){
-      const outputCanvas = document.createElement('canvas');
-      outputCanvas.width = 1600;
-      outputCanvas.height = 1200;
+    function drawExportImage(context, image, style){
+      if(!image.complete || !image.naturalWidth || !image.naturalHeight){
+        return;
+      }
 
+      const x = image.offsetLeft;
+      const y = image.offsetTop;
+      const width = image.offsetWidth;
+      const height = image.offsetHeight;
+      const leftBorder = parseFloat(style.borderLeftWidth);
+      const topBorder = parseFloat(style.borderTopWidth);
+      const innerWidth = width - leftBorder - parseFloat(style.borderRightWidth);
+      const innerHeight = height - topBorder - parseFloat(style.borderBottomWidth);
+      if(innerWidth <= 0 || innerHeight <= 0){
+        return;
+      }
+
+      const widthRatio = innerWidth / image.naturalWidth;
+      const heightRatio = innerHeight / image.naturalHeight;
+      const cover = style.objectFit === 'cover';
+      const scale = cover ? Math.max(widthRatio, heightRatio) : Math.min(widthRatio, heightRatio);
+      const drawnWidth = image.naturalWidth * scale;
+      const drawnHeight = image.naturalHeight * scale;
+      const innerX = x + leftBorder;
+      const innerY = y + topBorder;
+
+      if(leftBorder || topBorder){
+        context.fillStyle = style.backgroundColor;
+        context.fillRect(x, y, width, height);
+      }
+
+      context.save();
+      context.beginPath();
+      context.rect(innerX, innerY, innerWidth, innerHeight);
+      context.clip();
+      context.drawImage(
+        image,
+        innerX + (innerWidth - drawnWidth) / 2,
+        innerY + (innerHeight - drawnHeight) / 2,
+        drawnWidth,
+        drawnHeight
+      );
+      context.restore();
+    }
+
+    function drawExportText(context, element, style, origin, scale){
+      const node = element.firstChild;
+      if(!node){
+        return;
+      }
+
+      const range = document.createRange();
+      const source = node.textContent;
+      const graphemes = typeof Intl.Segmenter === 'function'
+        ? new Intl.Segmenter().segment(source)
+        : Array.from(source, segment => ({ segment }));
+      const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+      const lines = [];
+      let index = 0;
+
+      // Read the actual browser line breaks, including long words wrapped
+      // by CSS. Range coordinates include the current storyboard zoom.
+      for(const { segment } of graphemes){
+        range.setStart(node, index);
+        index += segment.length;
+        range.setEnd(node, index);
+        const rect = range.getBoundingClientRect();
+        if(!rect.width || !rect.height){
+          continue;
+        }
+
+        const line = lines[lines.length - 1];
+        if(!line || Math.abs(rect.top - line.top) >= lineHeight * scale / 2){
+          lines.push({ text:segment, left:rect.left, top:rect.top });
+        }else{
+          line.text += segment;
+          line.left = Math.min(line.left, rect.left);
+        }
+      }
+
+      context.save();
+      context.fillStyle = style.color;
+      context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      context.direction = style.direction;
+      context.textAlign = 'left';
+      context.textBaseline = 'alphabetic';
+      if('letterSpacing' in context){
+        context.letterSpacing = style.letterSpacing === 'normal' ? '0px' : style.letterSpacing;
+      }
+
+      for(const line of lines){
+        const text = line.text.replace(/[ \t\n\r\f]+/g, ' ').replace(/^ | $/g, '');
+        const metrics = context.measureText(text);
+        const ascent = metrics.fontBoundingBoxAscent ?? parseFloat(style.fontSize) * .8;
+        context.fillText(
+          text,
+          (line.left - origin.left) / scale,
+          (line.top - origin.top) / scale + ascent
+        );
+      }
+      context.restore();
+    }
+
+    function renderJPG(){
+      const boardWidth = scratch.width;
+      const boardHeight = scratch.height;
+      const frame = 48;
+      const footerHeight = 82;
+      const spreadWidth = boardWidth + frame * 2;
+      const spreadHeight = boardHeight + frame * 2;
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = spreadWidth;
+      outputCanvas.height = spreadHeight + footerHeight;
       const outputContext = outputCanvas.getContext('2d');
 
-      /* Match the white open two-page spread in the saved JPG. */
-      outputContext.fillStyle='#fffdfa';
-      outputContext.fillRect(0,0,1600,1200);
-      outputContext.fillStyle='#f0ede6';
-      outputContext.fillRect(793,0,14,1200);
-      outputContext.fillStyle='#c7c0b7';
-      outputContext.fillRect(799,0,2,1200);
-
-      /* Place the drawing layer over the paper. */
-      outputContext.drawImage(scratch, 0, 0);
-
-      /* Draw each draggable object onto the export canvas */
-      [...contentLayer.children].sort((a,b)=>{
-        const rank=e=>e.classList.contains('message')?3:(e.classList.contains('photo-sticker')||e.classList.contains('sticker-image')?1:2);
-        return rank(a)-rank(b);
-      }).forEach(element => {
-        const x = parseFloat(element.style.left) || 0;
-        const y = parseFloat(element.style.top) || 0;
-
-        if(element.classList.contains('message')){
-          outputContext.fillStyle='#19191e';
-          outputContext.font='900 35px Georgia, serif';
-          outputContext.textAlign='left';
-          outputContext.textBaseline='alphabetic';
-          wrapText(outputContext,element.textContent,x+5,y+38,300,41);
-        }
-
-        if(
-          element.classList.contains('sticker') &&
-          element.tagName === 'IMG'
-        ){
-          if(element.complete && element.naturalWidth){
-            outputContext.drawImage(element, x, y, element.classList.contains('photo-sticker') ? 310 : 240, element.classList.contains('photo-sticker') ? 230 : 85);
-          }
-        }else if(element.classList.contains('sticker')){
-          outputContext.font = '72px Arial';
-          outputContext.fillText(
-            element.textContent,
-            x,
-            y + 70
-          );
-        }
-      });
-
-      /* Add a branded screenshot footer and centered watermark. */
-      const watermarkHeight = 82;
-
-      outputContext.fillStyle = 'rgba(2,2,4,.88)';
-      outputContext.fillRect(
-        0,
-        outputCanvas.height - watermarkHeight,
-        outputCanvas.width,
-        watermarkHeight
+      // Extend the viewport's rainbow gradient around the entire spread.
+      const theme = getComputedStyle(viewport);
+      const colors = ['--cyan', '--purple', '--pink', '--orange', '--yellow', '--lime'];
+      const centerX = spreadWidth / 2;
+      const centerY = spreadHeight / 2;
+      const diagonal = (spreadWidth + spreadHeight) / 4;
+      const background = outputContext.createLinearGradient(
+        centerX - diagonal, centerY - diagonal,
+        centerX + diagonal, centerY + diagonal
       );
+      colors.forEach((color, index) => {
+        background.addColorStop(index / (colors.length - 1), theme.getPropertyValue(color).trim());
+      });
+      outputContext.fillStyle = background;
+      outputContext.fillRect(0, 0, spreadWidth, spreadHeight);
+
+      outputContext.save();
+      outputContext.translate(frame, frame);
+      outputContext.beginPath();
+      outputContext.rect(0, 0, boardWidth, boardHeight);
+      outputContext.clip();
+
+      const paper = outputContext.createLinearGradient(0, 0, boardWidth, 0);
+      paper.addColorStop(0, '#fffdf8');
+      paper.addColorStop(.492, '#fffdf8');
+      paper.addColorStop(.4994, '#ece8e0');
+      paper.addColorStop(.5, '#c6beb4');
+      paper.addColorStop(.5006, '#f1eee7');
+      paper.addColorStop(.509, '#fffefa');
+      paper.addColorStop(1, '#fffefa');
+      outputContext.fillStyle = paper;
+      outputContext.fillRect(0, 0, boardWidth, boardHeight);
+
+      outputContext.drawImage(scratch, 0, 0);
+      const origin = contentLayer.getBoundingClientRect();
+      const scale = artboard.getBoundingClientRect().width / artboard.offsetWidth;
+      const items = Array.from(contentLayer.children, element => ({
+        element,
+        style:getComputedStyle(element)
+      }));
+      items.sort((first, second) => Number(first.style.zIndex) - Number(second.style.zIndex));
+      for(const { element, style } of items){
+        if(element.tagName === 'IMG'){
+          drawExportImage(outputContext, element, style);
+        }else{
+          drawExportText(outputContext, element, style, origin, scale);
+        }
+      }
+      outputContext.restore();
+
+      // The watermark sits below the frame so it cannot cover artwork.
+      outputContext.fillStyle = '#202024';
+      outputContext.fillRect(0, spreadHeight, spreadWidth, footerHeight);
 
       const watermarkGradient = outputContext.createLinearGradient(
-        520,
+        centerX - 280,
         0,
-        1080,
+        centerX + 280,
         0
       );
 
@@ -1436,7 +1646,7 @@
       outputContext.fillText(
         'DARKMODE STORIES',
         outputCanvas.width / 2,
-        outputCanvas.height - watermarkHeight / 2
+        spreadHeight + footerHeight / 2
       );
 
       // Build the File synchronously so iOS can open its share sheet
@@ -1468,8 +1678,6 @@
 
       const file = renderJPG();
       const shareData = { files:[file] };
-      const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-        (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 
       if(isAppleMobile && navigator.share && navigator.canShare?.(shareData)){
         showToast('Choose Save to Files and pick a folder.');
@@ -1484,40 +1692,6 @@
       }
 
       downloadJPG(file);
-    }
-
-    /* Helper: draws rounded rectangles on canvas */
-    function roundRect(context, x, y, width, height, radius){
-      context.beginPath();
-      context.moveTo(x + radius, y);
-      context.arcTo(x + width, y, x + width, y + height, radius);
-      context.arcTo(x + width, y + height, x, y + height, radius);
-      context.arcTo(x, y + height, x, y, radius);
-      context.arcTo(x, y, x + width, y, radius);
-      context.closePath();
-    }
-
-    /* Helper: wraps long message text across multiple lines */
-    function wrapText(context, text, x, y, maxWidth, lineHeight){
-      const words = text.split(' ');
-      let line = '';
-
-      for(let index = 0; index < words.length; index++){
-        const testLine = line + words[index] + ' ';
-
-        if(
-          context.measureText(testLine).width > maxWidth &&
-          index > 0
-        ){
-          context.fillText(line, x, y);
-          line = words[index] + ' ';
-          y += lineHeight;
-        }else{
-          line = testLine;
-        }
-      }
-
-      context.fillText(line, x, y);
     }
 
     /* Shows a brief status message */

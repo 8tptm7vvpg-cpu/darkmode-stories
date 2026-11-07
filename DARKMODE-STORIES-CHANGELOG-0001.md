@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.2
+
+- Updated Read Aloud to prefer an installed voice, request media playback, and read longer stories one chunk at a time.
+- Added recovery for silent completion, stalled speech, and voice errors, with playback status on the storyboard.
+
+## 0.16.1
+
+- Exported the complete two-page spread inside the rainbow gradient frame, with the branded footer below the artboard.
+- Matched the storyboard's photo cropping, sticker proportions, and text line breaks in the JPG.
+
 ## 0.16.0
 
 - Flattened the archive and kept `index.html` as the entry point. The other files use the DARKMODE-STORIES prefix and their first series number.

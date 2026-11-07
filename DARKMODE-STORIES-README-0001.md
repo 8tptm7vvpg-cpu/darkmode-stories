@@ -1,6 +1,6 @@
 # DARKMODE STORIES
 
-**Current version:** `0.16.0`
+**Current version:** `0.16.2`
 
 DARKMODE STORIES is a child-friendly creative storytelling experience built around speech-to-text, draggable story elements, drawing, original stickers, native device emoji input, parallax, and JPG export.
 
@@ -40,11 +40,13 @@ Add original or properly licensed artwork in the same folder, using `DARKMODE-ST
 
 ## Save a story
 
+The JPG contains both pages, the rainbow frame, and the footer below the artboard. It saves the entire spread at any zoom or pan position.
+
 On iPhone and iPad, tap Save, select **Save to Files** in the share sheet, choose a folder, and tap **Save**. If your browser uses a download instead, check its Downloads list. In Safari, the destination is shown under **Settings → Apps → Safari → Downloads**.
 
 ## Talk to text and Read Aloud
 
-Tap the microphone to speak. If the browser cannot start speech recognition, tap the smaller input field and use the keyboard microphone or type. Safari's browser recognition depends on Siri, and Amazon Silk uses keyboard dictation. Tap the speaker to hear the story in page order. Tap it again to stop playback.
+Tap the microphone to speak. If the browser cannot start speech recognition, tap the smaller input field and use the keyboard microphone or type. Safari's browser recognition depends on Siri, and Amazon Silk uses keyboard dictation. Tap the speaker to hear the story in page order. Stories prefers an installed English voice and retries with a different voice when playback fails. Tap the speaker again to stop playback.
 
 ## Rights
 
