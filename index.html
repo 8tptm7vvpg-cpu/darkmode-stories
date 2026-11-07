@@ -1,14 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- DARKMODE STORIES V9
-       Main document shell. Visual styling and behavior are separated
-       into /css and /js so the project can grow cleanly in GitHub. -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#020204">
   <title>DARKMODE STORIES</title>
-  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="DARKMODE-STORIES-STYLE-0001.css">
 </head>
 <body>
 <!-- =========================================================
@@ -26,7 +23,7 @@
        TOAST MESSAGE
        Displays brief status confirmations such as JPG export.
        ========================================================= -->
-  <div class="toast" id="toast">Saved as JPG</div>
+  <div class="toast" id="toast" role="status"></div>
 
   <!-- =========================================================
        FULL-SCREEN INTRO SEQUENCE
@@ -45,7 +42,7 @@
       <div class="intro-divider"></div>
       <div class="intro-url">DARKMODEWORKS.COM</div>
     </div>
-    <div class="intro-version">VERSION 0.15.0</div>
+    <div class="intro-version">VERSION 0.16.0</div>
   </section>
 
   <!-- =========================================================
@@ -102,36 +99,37 @@
           <span class="draw-target-core"></span>
         </div>
 
-        <!-- Shows live speech-to-text while listening -->
-        <div class="dictation" id="dictation">
-          <small id="dictationLabel">Listening</small>
-          <span id="liveText">Start talking...</span>
-
-          <!-- Silk / unsupported-browser fallback:
-               focus this field, then use the keyboard microphone. -->
-          <div class="speech-fallback" id="speechFallback">
-            <div class="speech-fallback-compose">
-              <textarea
-                id="speechFallbackInput"
-                class="speech-fallback-input"
-                rows="3"
-                placeholder="Tap here, then use the keyboard microphone…"
-                aria-label="Keyboard dictation text"
-              ></textarea>
-              <button
-                id="speechFallbackAdd"
-                class="speech-fallback-send"
-                aria-label="Post words to Storyboard"
-              >➤</button>
-            </div>
-            <button
-              id="speechFallbackCancel"
-              class="speech-fallback-cancel"
-            >Cancel</button>
-          </div>
-        </div>
       </div>
     </section>
+
+    <!-- Shows live speech-to-text while listening -->
+    <div class="dictation" id="dictation">
+      <small id="dictationLabel">Listening</small>
+      <span id="liveText">Start talking...</span>
+
+      <!-- Silk / unsupported-browser fallback:
+           focus this field, then use the keyboard microphone. -->
+      <div class="speech-fallback" id="speechFallback">
+        <div class="speech-fallback-compose">
+          <textarea
+            id="speechFallbackInput"
+            class="speech-fallback-input"
+            rows="2"
+            placeholder="Type or use the keyboard mic…"
+            aria-label="Keyboard dictation text"
+          ></textarea>
+          <button
+            id="speechFallbackAdd"
+            class="speech-fallback-send"
+            aria-label="Post words to Storyboard"
+          >➤</button>
+        </div>
+        <button
+          id="speechFallbackCancel"
+          class="speech-fallback-cancel"
+        >Cancel</button>
+      </div>
+    </div>
 
     <!-- =======================================================
          FLOATING TOOL AREA
@@ -182,6 +180,6 @@
       </nav>
     </section>
   </main>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="DARKMODE-STORIES-APP-0001.js"></script>
 </body>
 </html>
