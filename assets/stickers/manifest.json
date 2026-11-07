@@ -1,14 +1,22 @@
 [
   {
-    "name": "Neon Heart",
-    "src": "assets/stickers/neon-heart.svg"
+    "name": "Art Deco Divider",
+    "src": "assets/stickers/deco-divider.svg"
   },
   {
-    "name": "Neon Star",
-    "src": "assets/stickers/neon-star.svg"
+    "name": "Editorial Sunburst",
+    "src": "assets/stickers/editorial-sunburst.svg"
   },
   {
-    "name": "Rainbow Orb",
-    "src": "assets/stickers/rainbow-orb.svg"
+    "name": "Pastel Highlight",
+    "src": "assets/stickers/pastel-highlight.svg"
+  },
+  {
+    "name": "Botanical Rule",
+    "src": "assets/stickers/botanical-rule.svg"
+  },
+  {
+    "name": "Deco Corners",
+    "src": "assets/stickers/deco-corners.svg"
   }
 ]
