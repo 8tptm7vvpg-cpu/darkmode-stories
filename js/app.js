@@ -148,6 +148,8 @@
     let mode = 'pan';
     let artX = 0;
     let artY = 0;
+    const storyboardScale = window.innerWidth <= 600 ? .52 : (window.innerWidth <= 900 ? .72 : 1);
+    if(window.innerWidth <= 600){ artX = 195; artY = 185; }
 
     let pointerActive = false;
     let startX = 0;
@@ -329,7 +331,7 @@
        ========================================================= */
     function updateTransform(){
       artboard.style.transform =
-        `translate(calc(-50% + ${artX}px), calc(-50% + ${artY}px))`;
+        `translate(calc(-50% + ${artX}px), calc(-50% + ${artY}px)) scale(${storyboardScale})`;
 
       /* Drives the global parallax layers.
          Each CSS layer applies a different multiplier to these values. */
@@ -522,6 +524,43 @@
        ADD EMOJIS / STICKERS
        Places the selected item near the center of the visible area.
        ========================================================= */
+    /* Editorial flow: left page first, then right page.
+       A cell is reserved when an item is inserted; manual dragging
+       remains independent of automatic placement. */
+    const layoutSlots = [];
+    function placeEditorialItem(element, kind){
+      const pageInset = 62, columnGap = 18, rowGap = 20;
+      const cellWidth = kind === 'text' ? 310 : (kind === 'photo' ? 310 : kind === 'decor' ? 250 : 110);
+      const cellHeight = kind === 'text' ? 138 : (kind === 'photo' ? 245 : kind === 'decor' ? 95 : 120);
+      let page=0, x=pageInset, y=65;
+      for(const slot of layoutSlots){
+        if(slot.page!==page) continue;
+        const nextX=slot.x+slot.width+columnGap;
+        if(nextX+cellWidth <= 800-pageInset){ x=nextX; y=slot.y; }
+        else { x=pageInset; y=Math.max(...layoutSlots.filter(s=>s.page===page).map(s=>s.y+s.height))+rowGap; }
+      }
+      while(y+cellHeight>1120 && page<1){
+        page++;x=pageInset;y=65;
+      }
+      /* Place against all existing slots, wrapping rows as needed. */
+      for(let tries=0;tries<250;tries++){
+        const collision=layoutSlots.find(s=>s.page===page &&
+          x<s.x+s.width+columnGap && x+cellWidth+columnGap>s.x &&
+          y<s.y+s.height+rowGap && y+cellHeight+rowGap>s.y);
+        if(!collision) break;
+        x=collision.x+collision.width+columnGap;
+        if(x+cellWidth>800-pageInset){
+          x=pageInset;
+          y=Math.max(...layoutSlots.filter(s=>s.page===page && s.y<=y+rowGap).map(s=>s.y+s.height),y)+rowGap;
+        }
+        if(y+cellHeight>1120 && page===0){page=1;x=pageInset;y=65;}
+      }
+      const absoluteX=page*800+x;
+      element.style.left=absoluteX+'px';
+      element.style.top=y+'px';
+      layoutSlots.push({page,x,y,width:cellWidth,height:cellHeight});
+    }
+
     function addSticker(symbol){
       hint.style.opacity = '0';
 
@@ -531,8 +570,7 @@
       element.dataset.readableText =
         /[\p{L}\p{N}]/u.test(symbol) ? symbol : '';
 
-      element.style.left = (800 + (-artX) + Math.random() * 80 - 40) + 'px';
-      element.style.top = (600 + (-artY) + Math.random() * 80 - 40) + 'px';
+      placeEditorialItem(element, 'emoji');
 
       contentLayer.appendChild(element);
       makeDraggable(element);
@@ -547,14 +585,33 @@
       image.src = sticker.src;
       image.alt = sticker.name;
 
-      image.style.left =
-        (800 + (-artX) + Math.random() * 80 - 40) + 'px';
-      image.style.top =
-        (600 + (-artY) + Math.random() * 80 - 40) + 'px';
+      placeEditorialItem(image, 'decor');
 
       contentLayer.appendChild(image);
       makeDraggable(image);
     }
+
+    /* Photos are kept only in browser memory, never uploaded. */
+    const photoUrls=[];
+    document.getElementById('photoAddBtn').onclick=()=>{
+      document.getElementById('photoInput').click();
+    };
+    document.getElementById('photoInput').addEventListener('change',event=>{
+      const file=event.target.files?.[0];
+      if(!file || !file.type.startsWith('image/')) return;
+      const url=URL.createObjectURL(file);
+      photoUrls.push(url);
+      const image=document.createElement('img');
+      image.src=url;image.alt='Your photo';
+      image.className='sticker photo-sticker';
+      placeEditorialItem(image,'photo');
+      contentLayer.appendChild(image);
+      makeDraggable(image);
+      hint.style.opacity='0';
+      closeLibraries();
+      event.target.value='';
+    });
+    window.addEventListener('pagehide',()=>photoUrls.forEach(url=>URL.revokeObjectURL(url)));
 
     /* =========================================================
        MAKE OBJECTS DRAGGABLE
@@ -593,8 +650,8 @@
         let x = (event.clientX - artboardRect.left - offsetX) * scaleX;
         let y = (event.clientY - artboardRect.top - offsetY) * scaleY;
 
-        x = Math.max(0, Math.min(x, 1530));
-        y = Math.max(0, Math.min(y, 1120));
+        x = Math.max(36, Math.min(x, 1510));
+        y = Math.max(35, Math.min(y, 1090));
 
         element.style.left = x + 'px';
         element.style.top = y + 'px';
@@ -603,7 +660,7 @@
       element.addEventListener('pointerup', event => {
         drag = false;
         element.classList.remove('is-dragging');
-        element.style.zIndex = '12';
+        element.style.zIndex = element.classList.contains('message') ? '20' : (element.classList.contains('sticker-image') || element.classList.contains('photo-sticker') ? '8' : '18');
 
         try{
           element.releasePointerCapture(event.pointerId);
@@ -631,55 +688,7 @@
       element.textContent = cleanText;
       element.dataset.readableText = cleanText;
 
-      const previousMessages = [
-        ...contentLayer.querySelectorAll('.message')
-      ];
-
-      if(previousMessages.length){
-        const previous = previousMessages[previousMessages.length - 1];
-        const previousX = parseFloat(previous.style.left) || 24;
-        const previousY = parseFloat(previous.style.top) || 24;
-        const gap = 26;
-
-        let messageX = previousX;
-        let messageY =
-          previousY +
-          Math.max(previous.offsetHeight, 118) +
-          gap;
-
-        if(messageY > 1000){
-          messageX = Math.min(previousX + 660, 940);
-          messageY = 150;
-        }
-
-        element.style.left = messageX + 'px';
-        element.style.top = messageY + 'px';
-      }else{
-        const viewportRect = viewport.getBoundingClientRect();
-        const artboardRect = artboard.getBoundingClientRect();
-
-        const visibleAnchorX =
-          viewportRect.left + viewportRect.width * .5;
-
-        const visibleAnchorY =
-          viewportRect.top + viewportRect.height * .3;
-
-        const scaleX = 1600 / artboardRect.width;
-        const scaleY = 1200 / artboardRect.height;
-
-        let messageX =
-          (visibleAnchorX - artboardRect.left) * scaleX - 220;
-
-        let messageY =
-          (visibleAnchorY - artboardRect.top) * scaleY;
-
-        messageX = Math.max(24, Math.min(messageX, 940));
-        messageY = Math.max(24, Math.min(messageY, 980));
-
-        element.style.left = messageX + 'px';
-        element.style.top = messageY + 'px';
-      }
-
+      placeEditorialItem(element, 'text');
       contentLayer.appendChild(element);
       makeDraggable(element);
 
@@ -1353,6 +1362,7 @@
       artX = 0;
       artY = 0;
       messageCount = 0;
+      layoutSlots.length = 0;
 
       updateTransform();
       sizeScratch();
@@ -1383,63 +1393,40 @@
 
       const outputContext = outputCanvas.getContext('2d');
 
-      /* Rebuild the rainbow gradient in the exported image */
-      const gradient = outputContext.createLinearGradient(
-        0,
-        0,
-        1600,
-        1200
-      );
-
-      gradient.addColorStop(0, '#00eaff');
-      gradient.addColorStop(.23, '#7c5cff');
-      gradient.addColorStop(.43, '#ff3dbb');
-      gradient.addColorStop(.62, '#ff8c42');
-      gradient.addColorStop(.79, '#ffe45c');
-      gradient.addColorStop(1, '#8cff54');
-
-      outputContext.fillStyle = gradient;
-      outputContext.fillRect(0, 0, 1600, 1200);
+      /* Match the white open two-page spread in the saved JPG. */
+      outputContext.fillStyle='#fffdfa';
+      outputContext.fillRect(0,0,1600,1200);
+      outputContext.fillStyle='#f0ede6';
+      outputContext.fillRect(793,0,14,1200);
+      outputContext.fillStyle='#c7c0b7';
+      outputContext.fillRect(799,0,2,1200);
 
       /* Places the scratch layer over the gradient */
       outputContext.drawImage(scratch, 0, 0);
 
       /* Draw each draggable object onto the export canvas */
-      [...contentLayer.children].forEach(element => {
+      [...contentLayer.children].sort((a,b)=>{
+        const rank=e=>e.classList.contains('message')?3:(e.classList.contains('photo-sticker')||e.classList.contains('sticker-image')?1:2);
+        return rank(a)-rank(b);
+      }).forEach(element => {
         const x = parseFloat(element.style.left) || 0;
         const y = parseFloat(element.style.top) || 0;
 
         if(element.classList.contains('message')){
-          const width = 620;
-          const height = 132;
-
-          outputContext.fillStyle = 'rgba(8,12,22,.92)';
-          roundRect(outputContext, x, y, width, height, 22);
-          outputContext.fill();
-
-          outputContext.strokeStyle = 'rgba(255,255,255,.15)';
-          outputContext.lineWidth = 2;
-          roundRect(outputContext, x, y, width, height, 22);
-          outputContext.stroke();
-
-          outputContext.fillStyle = '#ffffff';
-          outputContext.font = '900 46px Arial';
-
-          wrapText(
-            outputContext,
-            element.textContent,
-            x + 20,
-            y + 40,
-            width - 40,
-            52
-          );
+          outputContext.fillStyle='#19191e';
+          outputContext.font='900 35px Georgia, serif';
+          outputContext.textAlign='left';
+          outputContext.textBaseline='alphabetic';
+          wrapText(outputContext,element.textContent,x+5,y+38,300,41);
         }
 
         if(
           element.classList.contains('sticker') &&
           element.tagName === 'IMG'
         ){
-          outputContext.drawImage(element, x, y, 92, 92);
+          if(element.complete && element.naturalWidth){
+            outputContext.drawImage(element, x, y, element.classList.contains('photo-sticker') ? 310 : 240, element.classList.contains('photo-sticker') ? 230 : 85);
+          }
         }else if(element.classList.contains('sticker')){
           outputContext.font = '72px Arial';
           outputContext.fillText(
