@@ -45,7 +45,7 @@
       <div class="intro-divider"></div>
       <div class="intro-url">DARKMODEWORKS.COM</div>
     </div>
-    <div class="intro-version">VERSION 0.14.6</div>
+    <div class="intro-version">VERSION 0.15.0</div>
   </section>
 
   <!-- =========================================================
@@ -65,7 +65,7 @@
       <span class="brand-header-darkmode">DARKMODE</span>
       <span class="brand-header-stories">STORIES</span>
     </h1>
-      <button class="icon-btn" id="exportBtn" aria-label="Save JPG">⬇️</button>
+      <button class="icon-btn" id="exportBtn" aria-label="Save Storyboard as JPG"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3z"/><path d="M7 3v7h10V3M7 21v-8h10v8"/></svg></button>
     </header>
 
     <!-- =======================================================
@@ -81,9 +81,9 @@
         <!-- Intro instructions inside the workspace -->
         <div class="hint" id="hint">
           <strong>Welcome to your Storyboard!</strong><br>
-          🔓 Drag to move · 🔒 Lock to draw<br>
+          🖌️ Draw · ↔️ Move the Storyboard<br>
           🎤 Talk and post your words · 😀 Add emojis<br>
-          ⭐ Add stickers · ⬇️ Save a picture
+          ⭐ Stickers or photos · 💾 Save a picture
         </div>
 
         <!-- Larger movable Story Canvas -->
@@ -92,7 +92,7 @@
           <!-- Black scratch-off foreground -->
           <canvas class="scratch" id="scratch"></canvas>
 
-          <!-- Holds draggable messages, emojis, and stickers -->
+          <!-- Holds draggable messages, emojis, photos, and decorative stickers -->
           <div class="content-layer" id="contentLayer"></div>
         </div>
 
@@ -169,7 +169,7 @@
       <!-- Sticker picker popup -->
       <div class="library" id="stickerLibrary">
         <div class="library-title">Choose a sticker</div>
-        <div class="grid" id="stickerGrid"></div>
+        <button class="photo-add-btn" id="photoAddBtn" type="button">📷 Add photo from device</button><input id="photoInput" type="file" accept="image/*" hidden><div class="grid" id="stickerGrid"></div>
       </div>
 
       <!-- Floating control dock -->

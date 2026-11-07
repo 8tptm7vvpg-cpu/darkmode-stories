@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+- Two-page white magazine Storyboard, editorial item flow, mobile zoom, photos, decorative stickers and save icon.
+- Existing speech and browser compatibility logic retained.
+
+# Changelog
+
 ## [0.14.6] - 2026-07-15
 
 ### Changed
