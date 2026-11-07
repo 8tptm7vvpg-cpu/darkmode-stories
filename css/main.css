@@ -1609,3 +1609,61 @@ body{
     font-size:clamp(1.15rem,5.4vw,1.55rem);
   }
 }
+
+/* v0.15.0: Editorial two-page storyboard */
+.artboard{
+  transform-origin:center center!important;
+  background:
+    linear-gradient(90deg,transparent 49.82%,rgba(55,50,50,.14) 49.94%,rgba(55,50,50,.26) 50%,rgba(55,50,50,.14) 50.06%,transparent 50.18%),
+    linear-gradient(90deg,#fffdf8 0%,#fffdf8 49.2%,#ece8e0 49.94%,#f1eee7 50.06%,#fffefa 50.9%,#fffefa 100%)!important;
+  border:1px solid #ddd8cf;
+  box-shadow:0 24px 90px #0009, inset 0 0 55px #c8bca82a!important;
+}
+.artboard::before,.artboard::after{
+  content:"";position:absolute;top:0;bottom:0;width:40px;pointer-events:none;z-index:0;
+}
+.artboard::before{left:0;background:linear-gradient(90deg,#d8d3ca4d,transparent)}
+.artboard::after{right:0;background:linear-gradient(270deg,#d8d3ca4d,transparent)}
+.message{
+  width:310px!important;min-height:0!important;
+  padding:8px 5px!important;border:0!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important;
+  color:#19191e!important;text-shadow:none!important;
+  font-family:Georgia,"Times New Roman",serif!important;
+  font-size:35px!important;line-height:1.13!important;font-weight:900!important;
+  letter-spacing:-.025em!important;overflow-wrap:anywhere;
+  z-index:20!important;
+}
+.sticker:not(.sticker-image):not(.photo-sticker){
+  min-width:72px!important;min-height:72px!important;
+  background:transparent!important;box-shadow:none!important;
+  border:0!important;padding:3px!important;border-radius:0!important;
+  z-index:18!important;
+}
+.sticker-image{
+  width:240px!important;height:85px!important;
+  min-width:0!important;min-height:0!important;
+  padding:0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important;
+  z-index:8!important;
+}
+.photo-sticker{
+  width:310px!important;height:230px!important;object-fit:cover!important;
+  background:white!important;border:5px solid white!important;
+  box-shadow:0 5px 16px #0003!important;border-radius:2px!important;
+  z-index:9!important;padding:0!important;
+}
+.photo-add-btn{
+  width:100%;min-height:52px;margin:5px 0 14px;border-radius:14px;
+  background:#f8f6ff;color:#171327;font-weight:900;font-size:1.1rem;
+  border:3px solid #a7a0ff;
+}
+#exportBtn{
+  background:transparent!important;color:#fff!important;
+  border:2px solid white!important;box-shadow:none!important;
+  display:grid;place-items:center;
+}
+#exportBtn svg{display:block}
+@media(max-width:600px){
+  .viewport{overflow:hidden}
+}
