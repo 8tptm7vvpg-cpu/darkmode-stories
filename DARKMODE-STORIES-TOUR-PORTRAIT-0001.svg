@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 370 265">
+  <defs>
+    <linearGradient id="night" x2=".7" y2="1">
+      <stop stop-color="#151238"/>
+      <stop offset="1" stop-color="#654480"/>
+    </linearGradient>
+    <linearGradient id="quilt" x2="1" y2=".7">
+      <stop stop-color="#f48f9f"/>
+      <stop offset="1" stop-color="#ad579a"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#night)" d="M0 0h370v265H0z"/>
+  <path fill="#241b43" d="M0 211 370 189v76H0z"/>
+  <rect x="201" y="22" width="133" height="136" rx="64" fill="#baa1da"/>
+  <rect x="209" y="30" width="117" height="120" rx="55" fill="#272552"/>
+  <path fill="#ecdfb6" d="M271 49c-21 0-34 14-34 32a34 34 0 0 0 57 25 34 34 0 0 1-23-57Z"/>
+  <path fill="#fff3cb" d="m305 57 2 5 5 2-5 2-2 5-2-5-5-2 5-2zm-6 59 1 4 4 1-4 1-1 4-1-4-4-1 4-1z"/>
+  <path stroke="#baa1da" stroke-width="4" d="M268 123v27m-57-28h113"/>
+  <rect x="39" y="121" width="28" height="104" rx="10" fill="#b585af"/>
+  <rect x="46" y="164" width="170" height="55" rx="16" fill="#b9addd"/>
+  <rect x="50" y="154" width="57" height="28" rx="12" fill="#f3d8e5"/>
+  <path fill="url(#quilt)" d="M100 174q24-17 114-4l34 33-17 25H84l3-40z"/>
+  <path stroke="#ffb5bb" stroke-width="3" stroke-dasharray="5 5" fill="none" d="m112 174 21 54m21-58 19 58m20-60 20 58M95 199h149"/>
+  <path fill="#271f40" d="M39 221h199v9H39z"/>
+  <path fill="#f6d38f" d="m139 55 4 11 11 4-11 4-4 11-4-11-11-4 11-4z"/>
+  <circle cx="97" cy="105" r="3" fill="#f6d38f"/>
+  <circle cx="171" cy="111" r="3" fill="#f6d38f"/>
+</svg>

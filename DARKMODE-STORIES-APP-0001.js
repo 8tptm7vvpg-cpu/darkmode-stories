@@ -1,3 +1,5 @@
+import { createTour } from './DARKMODE-STORIES-TOUR-0001.js?v=0.18.0';
+
 /* =========================================================
        GLOBAL BUTTON FEEDBACK
        Adds:
@@ -122,18 +124,20 @@
        Stores frequently used page elements in variables.
        ========================================================= */
     const viewport = document.getElementById('viewport');
+    const spread = document.getElementById('spread');
     const artboard = document.getElementById('artboard');
     const scratch = document.getElementById('scratch');
     const ctx = scratch.getContext('2d');
     const contentLayer = document.getElementById('contentLayer');
-    const hint = document.getElementById('hint');
     const lockBtn = document.getElementById('lockBtn');
     const modeBadge = document.getElementById('modeBadge');
     const micBtn = document.getElementById('micBtn');
     const dictation = document.getElementById('dictation');
     const liveText = document.getElementById('liveText');
     const emojiLibrary = document.getElementById('emojiLibrary');
-    const stickerLibrary = document.getElementById('stickerLibrary');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const paintControls = document.getElementById('paintControls');
+    const playbackCaption = document.getElementById('playbackCaption');
     const toast = document.getElementById('toast');
     const drawTarget = document.getElementById('drawTarget');
 
@@ -149,17 +153,15 @@
     let artX = 0;
     let artY = 0;
 
-    let pointerActive = false;
-    let startX = 0;
-    let startY = 0;
-    let startArtX = 0;
-    let startArtY = 0;
-
-    let drawing = false;
-    let lastX = 0;
-    let lastY = 0;
-
-    let messageCount = 0;
+    const boardWidth = 1600;
+    const boardHeight = 1200;
+    const maximumZoom = 4;
+    let zoom = null;
+    const pointers = new Map();
+    const itemTransforms = new WeakMap();
+    let interaction = null;
+    let tourActive = false;
+    let wipe = null;
 
     /* =========================================================
        EMOJI AND STICKER CONTENT
@@ -255,26 +257,25 @@
        OPEN / CLOSE LIBRARIES
        Only one library can be visible at a time.
        ========================================================= */
-    function toggleLibrary(type){
-      const target = type === 'emoji' ? emojiLibrary : stickerLibrary;
-      const other = type === 'emoji' ? stickerLibrary : emojiLibrary;
-
-      other.classList.remove('show');
-      target.classList.toggle('show');
+    function setPaintPanel(open){
+      paintControls.classList.toggle('show', open);
+      lockBtn.setAttribute('aria-expanded', String(open));
     }
 
     function closeLibraries(){
       emojiLibrary.classList.remove('show');
-      stickerLibrary.classList.remove('show');
+      emojiBtn.setAttribute('aria-expanded', 'false');
+      setPaintPanel(false);
     }
 
-    document.getElementById('emojiBtn').onclick = event => {
-      toggleLibrary('emoji');
-      animateButton(event.currentTarget);
-    };
-
-    document.getElementById('stickerBtn').onclick = event => {
-      toggleLibrary('sticker');
+    emojiBtn.onclick = event => {
+      const open = !emojiLibrary.classList.contains('show');
+      closeLibraries();
+      emojiLibrary.classList.toggle('show', open);
+      emojiBtn.setAttribute('aria-expanded', String(open));
+      if(open){
+        nativeEmojiInput.focus({ preventScroll:true });
+      }
       animateButton(event.currentTarget);
     };
 
@@ -286,15 +287,6 @@
        ========================================================= */
     const nativeEmojiInput =
       document.getElementById('nativeEmojiInput');
-
-    document.getElementById('emojiBtn').addEventListener(
-      'click',
-      () => {
-        setTimeout(() => {
-          nativeEmojiInput.focus();
-        }, 220);
-      }
-    );
 
     document.getElementById('addNativeEmojiBtn').onclick = event => {
       const value = nativeEmojiInput.value.trim();
@@ -325,80 +317,95 @@
        ARTBOARD MOVEMENT
        Updates the position of the larger Story Canvas.
        ========================================================= */
+    const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+
+    function fitScale(){
+      return Math.max(.01, Math.min(
+        (viewport.clientWidth - 28) / (boardWidth + 56),
+        (viewport.clientHeight - 28) / (boardHeight + 33),
+        1
+      ));
+    }
+
+    function boardScale(){
+      const width = viewport.clientWidth;
+      const fit = fitScale();
+      const compact = width <= 720 || window.matchMedia('(pointer: coarse)').matches;
+      const homeScale = compact
+        ? Math.min(width <= 600 ? .52 : .72, (width - 25) / (boardWidth / 2))
+        : fit;
+      return zoom === null
+        ? clamp(homeScale, fit, fit * maximumZoom)
+        : fit * zoom;
+    }
+
     function updateTransform(){
       const width = viewport.clientWidth;
       const height = viewport.clientHeight;
-      // On phones and tablets, fit at least the left page across the viewport.
-      const scale = width <= 900
-        ? Math.min(width <= 600 ? .52 : .72, width / 800)
-        : 1;
-      const clipped = 1600 * scale > width || 1200 * scale > height;
-      const homeX = clipped ? (1600 * scale - width) / 2 : 0;
-      const homeY = clipped ? (1200 * scale - height) / 2 : 0;
+      const scale = boardScale();
+      const gutter = width <= 600 || window.matchMedia('(pointer: coarse)').matches ? 25 : 0;
+      const horizontalTravel = Math.max(0, (boardWidth * scale - width) / 2 + gutter);
+      const verticalTravel = Math.max(0, (boardHeight * scale - height) / 2 + gutter);
+      const homeX = zoom === null && boardWidth * scale > width ? horizontalTravel : 0;
+      const homeY = zoom === null && boardHeight * scale > height ? verticalTravel : 0;
+      const offsetX = zoom === 1 ? 0 : clamp(homeX + artX, -horizontalTravel, horizontalTravel);
+      const offsetY = zoom === 1 ? 0 : clamp(homeY + artY, -verticalTravel, verticalTravel);
+      artX = offsetX - homeX;
+      artY = offsetY - homeY;
 
-      artboard.style.transform =
-        `translate(calc(-50% + ${homeX + artX}px), calc(-50% + ${homeY + artY}px)) scale(${scale})`;
+      spread.style.transform =
+        `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${scale})`;
 
-      /* Drives the global parallax layers.
-         Each CSS layer applies a different multiplier to these values. */
-      document.documentElement.style.setProperty('--px', artX + 'px');
-      document.documentElement.style.setProperty('--py', artY + 'px');
+      document.documentElement.style.setProperty('--px', offsetX + 'px');
+      document.documentElement.style.setProperty('--py', offsetY + 'px');
     }
 
-    /* =========================================================
-       MODE SWITCH
-       - Pan mode moves the Story Canvas
-       - Draw mode scratches away the black layer
-       ========================================================= */
     function setMode(nextMode){
       mode = nextMode;
-
       const drawModeActive = mode === 'draw';
-
-      /* The icon shows the action available next. */
-      lockBtn.textContent = drawModeActive ? '↔️' : '🖌️';
-      lockBtn.setAttribute(
-        'aria-label',
-        drawModeActive
-          ? 'Switch to Story Mode'
-          : 'Switch to Draw Mode'
-      );
-
+      lockBtn.setAttribute('aria-pressed', String(drawModeActive));
       lockBtn.classList.toggle('locked', drawModeActive);
-
-      modeBadge.textContent =
-        drawModeActive ? 'DRAW MODE' : 'STORY MODE';
-
-      hint.innerHTML = drawModeActive
-        ? 'Drag your finger to paint with the black brush.'
-        : 'Drag to move around the larger colorful Storyboard.';
+      modeBadge.textContent = drawModeActive ? 'DRAW MODE' : 'STORY MODE';
+      setPaintPanel(false);
     }
 
     lockBtn.onclick = event => {
-      setMode(mode === 'pan' ? 'draw' : 'pan');
+      const panelOpen = paintControls.classList.contains('show');
+      closeLibraries();
+      if(panelOpen){
+        setMode('pan');
+      }else{
+        setMode('draw');
+        setPaintPanel(true);
+      }
       animateButton(event.currentTarget);
     };
+    document.getElementById('finishPaintBtn').onclick = () => setMode('pan');
 
-    /* =========================================================
-       SCRATCH CANVAS SETUP
-       Paints a black foreground over the rainbow gradient.
-       Drawing uses destination-out to erase the black layer.
-       ========================================================= */
+    const brushWidth = document.getElementById('brushWidth');
+    const brushWidthValue = document.getElementById('brushWidthValue');
+    const brushStyle = document.getElementById('brushStyle');
+    const brushColor = document.getElementById('brushColor');
+    const brushHue = document.getElementById('brushHue');
+
+    brushWidth.oninput = () => {
+      brushWidthValue.textContent = brushWidth.value + ' px';
+    };
+
+    brushHue.oninput = () => {
+      const hue = Number(brushHue.value) / 60;
+      const transition = Math.round(255 * (1 - Math.abs(hue % 2 - 1)));
+      const colors = [
+        [255, transition, 0], [transition, 255, 0], [0, 255, transition],
+        [0, transition, 255], [transition, 0, 255], [255, 0, transition]
+      ];
+      brushColor.value = '#' + colors[Math.floor(hue)]
+        .map(channel => channel.toString(16).padStart(2, '0')).join('');
+    };
+
     function sizeScratch(){
-      scratch.width = 1600;
-      scratch.height = 1200;
-
-      /* Start with a completely transparent drawing layer so the
-         bright gradient artboard is immediately visible. */
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.clearRect(0, 0, scratch.width, scratch.height);
-
-      /* Draw Mode now paints an oversized black brush stroke. */
-      ctx.strokeStyle = '#050509';
-      ctx.fillStyle = '#050509';
-      ctx.lineWidth = 36;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      scratch.width = boardWidth;
+      scratch.height = boardHeight;
     }
 
     sizeScratch();
@@ -432,117 +439,237 @@
       });
     }
 
-    /* Converts a screen pointer location into artboard coordinates */
     function artPoint(event){
       const rect = artboard.getBoundingClientRect();
-
       return {
-        x:(event.clientX - rect.left) * (1600 / rect.width),
-        y:(event.clientY - rect.top) * (1200 / rect.height)
+        x:(event.clientX - rect.left) * boardWidth / rect.width,
+        y:(event.clientY - rect.top) * boardHeight / rect.height
       };
     }
 
-    /* Positions the oversized brush target inside the visible viewport. */
-    function moveDrawTarget(event){
+    function moveDrawTarget(event, width){
       const viewportRect = viewport.getBoundingClientRect();
-
-      drawTarget.style.left =
-        (event.clientX - viewportRect.left) + 'px';
-
-      drawTarget.style.top =
-        (event.clientY - viewportRect.top) + 'px';
+      drawTarget.style.left = (event.clientX - viewportRect.left - viewport.clientLeft) + 'px';
+      drawTarget.style.top = (event.clientY - viewportRect.top - viewport.clientTop) + 'px';
+      const diameter = Math.max(18, width * boardScale() + 8) + 'px';
+      drawTarget.style.width = diameter;
+      drawTarget.style.height = diameter;
+      drawTarget.style.setProperty('--brush-color', brushColor.value);
     }
 
-    /* =========================================================
-       POINTER INTERACTION
-       Uses the same finger/mouse drag gesture for:
-       - Panning when unlocked
-       - Drawing when locked
-       ========================================================= */
-    viewport.addEventListener('pointerdown', event => {
-      closeLibraries();
-      hint.style.opacity = '0';
-
-      if(mode === 'pan'){
-        pointerActive = true;
-        viewport.setPointerCapture(event.pointerId);
-
-        startX = event.clientX;
-        startY = event.clientY;
-        startArtX = artX;
-        startArtY = artY;
+    function paintStroke(from, to, brush){
+      ctx.save();
+      ctx.fillStyle = brush.color;
+      ctx.strokeStyle = brush.color;
+      ctx.lineWidth = brush.width;
+      ctx.lineCap = brush.cap;
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = brush.opacity;
+      ctx.beginPath();
+      if(from.x === to.x && from.y === to.y){
+        if(brush.cap === 'square'){
+          ctx.fillRect(to.x - brush.width / 2, to.y - brush.width / 2, brush.width, brush.width);
+        }else{
+          ctx.arc(to.x, to.y, brush.width / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }else{
-        drawing = true;
-        viewport.setPointerCapture(event.pointerId);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
-        const point = artPoint(event);
-        lastX = point.x;
-        lastY = point.y;
+    function currentBrush(){
+      const style = brushStyle.value;
+      return {
+        width:Number(brushWidth.value) * (style === 'bold' ? 1.35 : 1),
+        color:brushColor.value,
+        cap:style === 'bold' ? 'square' : 'round',
+        opacity:style === 'watercolor' ? .22 : 1
+      };
+    }
 
-        /* Paint a round dot immediately, even before the finger moves. */
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, ctx.lineWidth / 2, 0, Math.PI * 2);
-        ctx.fill();
+    function itemPosition(item){
+      const x = parseFloat(item.style.left) + item.offsetWidth / 2;
+      const y = parseFloat(item.style.top) + item.offsetHeight / 2;
+      return { x, y };
+    }
 
-        moveDrawTarget(event);
+    function positionItem(item, x, y){
+      item.style.left = clamp(x, 0, boardWidth) - item.offsetWidth / 2 + 'px';
+      item.style.top = clamp(y, 0, boardHeight) - item.offsetHeight / 2 + 'px';
+    }
+
+    function applyItemTransform(item, transform){
+      itemTransforms.set(item, transform);
+      item.style.scale = String(transform.scale);
+      item.style.rotate = transform.angle + 'rad';
+    }
+
+    function pinchMetrics(first, second){
+      return {
+        center:{
+          clientX:(first.clientX + second.clientX) / 2,
+          clientY:(first.clientY + second.clientY) / 2
+        },
+        distance:Math.max(1, Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)),
+        angle:Math.atan2(second.clientY - first.clientY, second.clientX - first.clientX)
+      };
+    }
+
+    function startSingle(pointer, item, allowPaint){
+      if(item){
+        item.classList.add('is-dragging');
+        interaction = { kind:'item', item, start:artPoint(pointer), origin:itemPosition(item) };
+      }else if(mode === 'draw' && allowPaint && artboard.contains(pointer.target)){
+        const point = artPoint(pointer);
+        interaction = { kind:'paint', last:point, brush:currentBrush(), painted:false };
+        moveDrawTarget(pointer, interaction.brush.width);
         drawTarget.classList.add('show');
+      }else{
+        interaction = { kind:'pan', start:pointer, x:artX, y:artY };
+      }
+    }
+
+    function startPinch(){
+      const [first, second] = pointers.values();
+      const pinch = pinchMetrics(first, second);
+      const anchor = artPoint(pinch.center);
+      const item = first.item && (!second.item || second.item === first.item) ? first.item : null;
+      if(interaction?.item !== item){
+        interaction?.item?.classList.remove('is-dragging');
+      }
+      drawTarget.classList.remove('show');
+
+      if(item){
+        interaction = {
+          kind:'item-pinch', item, pinch, anchor,
+          origin:itemPosition(item), transform:itemTransforms.get(item) ?? { scale:1, angle:0 }
+        };
+      }else{
+        interaction = { kind:'board-pinch', pinch, anchor, scale:boardScale() };
+      }
+    }
+
+    function zoomBoard(scale, anchor, point){
+      const fit = fitScale();
+      zoom = clamp(scale / fit, 1, maximumZoom);
+      const rect = viewport.getBoundingClientRect();
+      const nextScale = boardScale();
+      artX = point.clientX - rect.left - viewport.clientLeft - viewport.clientWidth / 2
+        - (anchor.x - boardWidth / 2) * nextScale;
+      artY = point.clientY - rect.top - viewport.clientTop - viewport.clientHeight / 2
+        - (anchor.y - boardHeight / 2) * nextScale;
+      updateTransform();
+    }
+
+    viewport.addEventListener('pointerdown', event => {
+      if(tourActive || wipe || event.button !== 0 || pointers.size >= 2 || event.target.closest('.mode-badge,.playback-caption,.tour-controls')){
+        return;
+      }
+      if(pointers.size && event.pointerType !== 'touch'){
+        return;
+      }
+      closeLibraries();
+      const item = mode === 'pan' ? event.target.closest('.message,.sticker') : null;
+      pointers.set(event.pointerId, { clientX:event.clientX, clientY:event.clientY, target:event.target, item });
+      (item || viewport).setPointerCapture(event.pointerId);
+      if(pointers.size === 2){
+        startPinch();
+      }else{
+        startSingle(pointers.get(event.pointerId), item, true);
       }
     });
 
     viewport.addEventListener('pointermove', event => {
-      if(mode === 'pan' && pointerActive){
-        artX = startArtX + (event.clientX - startX);
-        artY = startArtY + (event.clientY - startY);
-        updateTransform();
+      const pointer = pointers.get(event.pointerId);
+      if(!pointer || !interaction){
+        return;
       }
+      pointer.clientX = event.clientX;
+      pointer.clientY = event.clientY;
 
-      if(mode === 'draw' && drawing){
-        const point = artPoint(event);
-
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(point.x, point.y);
-        ctx.stroke();
-
-        lastX = point.x;
-        lastY = point.y;
-
-        moveDrawTarget(event);
+      const { kind, item, origin, start } = interaction;
+      if(kind === 'item-pinch' || kind === 'board-pinch'){
+        const pinch = pinchMetrics(...pointers.values());
+        if(kind === 'board-pinch'){
+          // On the spread, fingers moving closer zoom in. Spreading them fits more paper.
+          zoomBoard(interaction.scale * interaction.pinch.distance / pinch.distance, interaction.anchor, pinch.center);
+        }else{
+          const center = artPoint(pinch.center);
+          const angle = pinch.angle - interaction.pinch.angle;
+          const scale = clamp(interaction.transform.scale * pinch.distance / interaction.pinch.distance, .25, 4);
+          const ratio = scale / interaction.transform.scale;
+          const dx = origin.x - interaction.anchor.x;
+          const dy = origin.y - interaction.anchor.y;
+          positionItem(item,
+            center.x + ratio * (dx * Math.cos(angle) - dy * Math.sin(angle)),
+            center.y + ratio * (dx * Math.sin(angle) + dy * Math.cos(angle))
+          );
+          const next = { scale, angle:interaction.transform.angle + angle };
+          applyItemTransform(item, next);
+        }
+      }else if(kind === 'pan'){
+        artX = interaction.x + (pointer.clientX - start.clientX);
+        artY = interaction.y + (pointer.clientY - start.clientY);
+        updateTransform();
+      }else if(kind === 'item'){
+        const point = artPoint(pointer);
+        positionItem(item, origin.x + point.x - start.x, origin.y + point.y - start.y);
+      }else if(kind === 'paint'){
+        const point = artPoint(pointer);
+        if(!interaction.painted && Math.hypot(point.x - interaction.last.x, point.y - interaction.last.y) < 2){
+          return;
+        }
+        paintStroke(interaction.last, point, interaction.brush);
+        interaction.last = point;
+        interaction.painted = true;
+        moveDrawTarget(pointer, interaction.brush.width);
       }
     });
 
     function finishPointer(event){
-      pointerActive = false;
-      drawing = false;
+      if(!pointers.delete(event.pointerId)){
+        return;
+      }
+      if(interaction?.kind === 'paint' && !interaction.painted && event.type === 'pointerup'){
+        paintStroke(interaction.last, interaction.last, interaction.brush);
+      }
+      const item = interaction?.item;
+      item?.classList.remove('is-dragging');
+      interaction = null;
       drawTarget.classList.remove('show');
 
-      try{
-        viewport.releasePointerCapture(event.pointerId);
-      }catch(error){
-        /* Safe fallback if the pointer was already released */
+      if(pointers.size){
+        const [remaining] = pointers.values();
+        startSingle(remaining, item, false);
       }
     }
 
     viewport.addEventListener('pointerup', finishPointer);
     viewport.addEventListener('pointercancel', finishPointer);
-    viewport.addEventListener('pointerleave', event => {
-      if(drawing){
-        finishPointer(event);
-      }
-    });
+    viewport.addEventListener('lostpointercapture', finishPointer);
 
-    /* =========================================================
-       ADD EMOJIS / STICKERS
-       Places the selected item near the center of the visible area.
-       ========================================================= */
+    viewport.addEventListener('wheel', event => {
+      if(tourActive || wipe || pointers.size || event.target.closest('.playback-caption')){
+        return;
+      }
+      event.preventDefault();
+      const step = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 100 : 1;
+      const nextScale = boardScale() * Math.exp(-event.deltaY * step * .002);
+      zoomBoard(nextScale, artPoint(event), event);
+    }, { passive:false });
+
     /* Editorial flow: left page first, then right page.
        A cell is reserved when an item is inserted; manual dragging
        remains independent of automatic placement. */
     const layoutSlots = [];
     function placeEditorialItem(element, kind){
       const pageInset = 62, columnGap = 18, rowGap = 20;
-      const cellWidth = kind === 'text' ? 310 : (kind === 'photo' ? 310 : kind === 'decor' ? 250 : 110);
-      const cellHeight = kind === 'text' ? 138 : (kind === 'photo' ? 245 : kind === 'decor' ? 95 : 120);
+      const cellWidth = ['text','photo','file'].includes(kind) ? 310 : kind === 'decor' ? 250 : 110;
+      const cellHeight = kind === 'text' ? 138 : kind === 'photo' ? 245 : kind === 'decor' ? 95 : 120;
       let page=0, x=pageInset, y=65;
       for(const slot of layoutSlots){
         if(slot.page!==page) continue;
@@ -573,113 +700,110 @@
     }
 
     function addSticker(symbol){
-      hint.style.opacity = '0';
 
       const element = document.createElement('div');
       element.className = 'sticker';
       element.textContent = symbol;
-      element.dataset.readableText =
-        /[\p{L}\p{N}]/u.test(symbol) ? symbol : '';
-
       placeEditorialItem(element, 'emoji');
 
       contentLayer.appendChild(element);
-      makeDraggable(element);
+      return element;
     }
 
     /* Adds an original image sticker from the library. */
     function addImageSticker(sticker){
-      hint.style.opacity = '0';
 
       const image = document.createElement('img');
       image.className = 'sticker sticker-image';
       image.src = sticker.src;
       image.alt = sticker.name;
+      image.draggable = false;
 
       placeEditorialItem(image, 'decor');
 
       contentLayer.appendChild(image);
-      makeDraggable(image);
+      return image;
     }
 
-    /* Photos are kept only in browser memory, never uploaded. */
-    const photoUrls=[];
-    document.getElementById('photoAddBtn').onclick=()=>{
-      document.getElementById('photoInput').click();
-    };
-    document.getElementById('photoInput').addEventListener('change',event=>{
-      const file=event.target.files?.[0];
-      if(!file || !file.type.startsWith('image/')) return;
-      const url=URL.createObjectURL(file);
-      photoUrls.push(url);
-      const image=document.createElement('img');
-      image.src=url;image.alt='Your photo';
-      image.className='sticker photo-sticker';
-      placeEditorialItem(image,'photo');
-      contentLayer.appendChild(image);
-      makeDraggable(image);
-      hint.style.opacity='0';
+    // Device files stay in the browser. Unsupported visual formats get a file card.
+    const photoInput = document.getElementById('photoInput');
+    const fileUrls = new Set();
+    const uploadBtn = document.getElementById('stickerBtn');
+
+    uploadBtn.onclick = event => {
       closeLibraries();
-      event.target.value='';
-    });
-    window.addEventListener('pagehide',()=>photoUrls.forEach(url=>URL.revokeObjectURL(url)));
+      photoInput.click();
+      animateButton(event.currentTarget);
+    };
 
-    /* =========================================================
-       MAKE OBJECTS DRAGGABLE
-       Applies to:
-       - Stickers
-       - Emojis
-       - Message bubbles
-       ========================================================= */
-    function makeDraggable(element){
-      let drag = false;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      element.addEventListener('pointerdown', event => {
-        event.stopPropagation();
-
-        drag = true;
-        element.classList.add('is-dragging');
-        element.style.zIndex = '100';
-        element.setPointerCapture(event.pointerId);
-
-        const rect = element.getBoundingClientRect();
-        offsetX = event.clientX - rect.left;
-        offsetY = event.clientY - rect.top;
-      });
-
-      element.addEventListener('pointermove', event => {
-        if(!drag){
-          return;
-        }
-
-        const artboardRect = artboard.getBoundingClientRect();
-        const scaleX = 1600 / artboardRect.width;
-        const scaleY = 1200 / artboardRect.height;
-
-        let x = (event.clientX - artboardRect.left - offsetX) * scaleX;
-        let y = (event.clientY - artboardRect.top - offsetY) * scaleY;
-
-        x = Math.max(36, Math.min(x, 1510));
-        y = Math.max(35, Math.min(y, 1090));
-
-        element.style.left = x + 'px';
-        element.style.top = y + 'px';
-      });
-
-      element.addEventListener('pointerup', event => {
-        drag = false;
-        element.classList.remove('is-dragging');
-        element.style.zIndex = element.classList.contains('message') ? '20' : (element.classList.contains('sticker-image') || element.classList.contains('photo-sticker') ? '8' : '18');
-
-        try{
-          element.releasePointerCapture(event.pointerId);
-        }catch(error){
-          /* Safe fallback if the pointer was already released */
-        }
-      });
+    function makeFileCard(file, url){
+      const card = document.createElement('div');
+      card.className = 'sticker file-sticker';
+      card.textContent = file.name;
+      card.tabIndex = 0;
+      card.setAttribute('role', 'link');
+      card.setAttribute('aria-label', 'Download ' + file.name);
+      const download = () => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        link.click();
+      };
+      card.ondblclick = download;
+      card.onkeydown = event => {
+        if(event.key === 'Enter') download();
+      };
+      return card;
     }
+
+    photoInput.addEventListener('change', async () => {
+      const files = Array.from(photoInput.files);
+      photoInput.value = '';
+      for(const file of files){
+        const url = URL.createObjectURL(file);
+        fileUrls.add(url);
+        if((file.type === 'text/plain' || /\.txt$/i.test(file.name)) && file.size <= 4096){
+          const words = (await file.text().catch(() => '')).trim();
+          if(!fileUrls.has(url)) break;
+          if(words){
+            addMessage(words);
+            URL.revokeObjectURL(url);
+            fileUrls.delete(url);
+            continue;
+          }
+        }
+        const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic|heif|avif|bmp|svg)$/i.test(file.name);
+        let element;
+        if(isImage){
+          element = document.createElement('img');
+          element.src = url;
+          element.alt = file.name;
+          element.className = 'sticker photo-sticker';
+          element.draggable = false;
+          element.onerror = () => {
+            if(!element.isConnected) return;
+            const card = makeFileCard(file, url);
+            card.style.left = element.style.left;
+            card.style.top = element.style.top;
+            element.replaceWith(card);
+            showToast('Added as a file because this browser could not display the image.');
+          };
+        }else{
+          element = makeFileCard(file, url);
+        }
+        placeEditorialItem(element, isImage ? 'photo' : 'file');
+        contentLayer.appendChild(element);
+      }
+    });
+
+    function clearFileUrls(){
+      fileUrls.forEach(url => URL.revokeObjectURL(url));
+      fileUrls.clear();
+    }
+
+    window.addEventListener('pagehide', event => {
+      if(!event.persisted) clearFileUrls();
+    });
 
     /* =========================================================
        ADD A SPEECH-TO-TEXT MESSAGE BUBBLE
@@ -692,7 +816,6 @@
         return;
       }
 
-      hint.style.opacity = '0';
 
       const element = document.createElement('div');
       element.className = 'message message-arrival';
@@ -701,9 +824,7 @@
 
       placeEditorialItem(element, 'text');
       contentLayer.appendChild(element);
-      makeDraggable(element);
-
-      messageCount++;
+      return element;
     }
 
     /* =========================================================
@@ -800,7 +921,7 @@
       recognitionWatchdog = null;
 
       micBtn.classList.remove('listening');
-      micBtn.textContent = '🎤';
+      micBtn.setAttribute('aria-pressed', 'false');
       dictation.classList.remove('has-speech');
     }
 
@@ -963,7 +1084,7 @@
 
         micBtn.classList.remove('unsupported');
         micBtn.classList.add('listening');
-        micBtn.textContent = '■';
+        micBtn.setAttribute('aria-pressed', 'true');
 
         speechFallback.classList.remove('show');
         dictation.classList.remove('composing');
@@ -1060,7 +1181,12 @@
     document.addEventListener('click', event => {
       const clickedButton = event.target.closest('button');
 
-      if(!clickedButton || clickedButton === micBtn || clickedButton.id === 'readBtn'){
+      if(wipe && clickedButton?.closest('.topbar,.dock')){
+        event.stopImmediatePropagation();
+        return;
+      }
+      if(!clickedButton || clickedButton === micBtn || clickedButton.id === 'readBtn'
+        || clickedButton.closest('.tour-controls,.erase-dialog')){
         return;
       }
 
@@ -1112,7 +1238,7 @@
       setLiveTranscript('');
 
       micBtn.classList.add('listening');
-      micBtn.textContent = '■';
+      micBtn.setAttribute('aria-pressed', 'true');
       dictation.classList.add('show');
       dictationLabel.textContent = 'Starting microphone';
       liveText.textContent = 'Getting ready...';
@@ -1200,58 +1326,46 @@
     }
 
     const speechEngine = window.speechSynthesis;
-    // Some browsers load the device voice list after the first request.
     speechEngine?.getVoices();
 
     let activeReading = null;
 
-    function preferredStoryVoices(){
-      const englishVoices = speechEngine.getVoices().filter(voice =>
-        voice.localService && /^en(?:-|$)/i.test(voice.lang)
-      );
-      const rank = voice => (/^en-US$/i.test(voice.lang) ? 2 : 0) + Number(voice.default);
-      return englishVoices.sort((first, second) => rank(second) - rank(first));
-    }
-
-    function finishReadAloud(reading, cancel = false){
-      if(activeReading !== reading){
-        return;
-      }
+    function stopReadAloud(cancel = true){
+      const reading = activeReading;
+      if(!reading) return;
 
       activeReading = null;
       clearTimeout(reading.timer);
+      reading.item?.classList.remove('is-reading');
+      playbackCaption.hidden = true;
+      playbackCaption.textContent = '';
       reading.button.classList.remove('dm-reading');
       reading.button.setAttribute('aria-pressed', 'false');
-      if(cancel){
+      reading.button.setAttribute('aria-label', 'Play story aloud');
+      if(cancel && reading.utterance){
         speechEngine.cancel();
       }
       if(reading.previousAudioType !== undefined){
-        navigator.audioSession.type = reading.previousAudioType;
+        try{
+          navigator.audioSession.type = reading.previousAudioType;
+        }catch(error){
+          console.debug('Could not restore the audio session:', error);
+        }
       }
     }
 
-    function stopReadAloud(){
-      if(activeReading){
-        finishReadAloud(activeReading, true);
-      }
-    }
-
-    function speakStoryText(text, readButton){
-      if(!speechEngine || typeof SpeechSynthesisUtterance === 'undefined'){
-        showToast('Read Aloud is unavailable in this browser.');
-        return;
-      }
-
-      const chunks = splitSpeechText(text);
-      const reading = { button:readButton, timer:null, utterance:null, previousAudioType:undefined };
+    function speakStory(items, button){
+      const chunks = items.flatMap(({ item, words }) =>
+        splitSpeechText(words).map(text => ({ item, text }))
+      );
+      const reading = { button, silent:!speechEngine || typeof SpeechSynthesisUtterance === 'undefined' };
       activeReading = reading;
-      readButton.classList.add('dm-reading');
-      readButton.setAttribute('aria-pressed', 'true');
+      button.classList.add('dm-reading');
+      button.setAttribute('aria-pressed', 'true');
+      button.setAttribute('aria-label', 'Stop story playback');
 
-      // Request media playback on browsers that expose the audio session.
-      // Restore the prior category before the microphone is used again.
       try{
-        if(navigator.audioSession){
+        if(!reading.silent && navigator.audioSession){
           const previousType = navigator.audioSession.type;
           navigator.audioSession.type = 'playback';
           reading.previousAudioType = previousType;
@@ -1260,197 +1374,245 @@
         console.debug('Could not set the playback audio session:', error);
       }
 
-      let chunkIndex = 0;
-      let voice = preferredStoryVoices()[0] ?? null;
-      let reportedStart = false;
+      let index = 0;
 
-      function speakChunk(retrying = false){
-        if(activeReading !== reading){
+      function nextChunk(){
+        if(activeReading !== reading) return;
+
+        reading.item?.classList.remove('is-reading');
+        const chunk = chunks[index++];
+        if(!chunk){
+          stopReadAloud(false);
+          return;
+        }
+        reading.item = chunk.item;
+        reading.item.classList.add('is-reading');
+        playbackCaption.textContent = chunk.text;
+        playbackCaption.hidden = false;
+
+        const showSilently = () => {
+          if(!reading.silent){
+            reading.silent = true;
+            reading.utterance = null;
+            speechEngine.cancel();
+          }
+          if(!reading.reportedSilent){
+            reading.reportedSilent = true;
+            showToast('Voice playback is unavailable. Following the story with captions.');
+          }
+          reading.timer = setTimeout(nextChunk, clamp(chunk.text.length * 66, 1800, 13000));
+        };
+
+        if(reading.silent){
+          showSilently();
           return;
         }
 
-        const chunk = chunks[chunkIndex];
-        const utterance = new SpeechSynthesisUtterance(chunk);
-        utterance.lang = voice?.lang || 'en-US';
-        if(voice){
-          utterance.voice = voice;
-        }
-        utterance.rate = .88;
-        utterance.volume = 1;
-        reading.utterance = utterance;
-        const isCurrent = () => activeReading === reading && reading.utterance === utterance;
-        const submittedAt = Date.now();
+        // Start on the Play tap with the browser's default voice.
+        // If it fails, try one explicitly selected English device voice.
+        function submitChunk(voice = null, retry = false){
+          if(activeReading !== reading) return;
 
-        function failChunk(reason){
-          if(!isCurrent()){
-            return;
-          }
-
-          if(retrying || reason === 'not-allowed'){
-            finishReadAloud(reading, true);
-            showToast(reason === 'not-allowed'
-              ? 'This browser blocked speech. Tap the speaker again.'
-              : 'Read Aloud could not play. Tap the speaker to try again.');
-            return;
-          }
-
-          clearTimeout(reading.timer);
-          reading.utterance = null;
-          const alternate = preferredStoryVoices().find(candidate => !voice ||
-            (candidate.voiceURI || candidate.name) !== (voice.voiceURI || voice.name));
-          voice = alternate ?? null;
-          showToast('Retrying Read Aloud…');
-          // Let the browser finish its current speech callback before
-          // resetting its queue and submitting another utterance.
-          reading.timer = setTimeout(() => {
-            if(activeReading === reading){
-              speechEngine.cancel();
-              speakChunk(true);
+          const utterance = new SpeechSynthesisUtterance(chunk.text);
+          utterance.lang = voice?.lang || 'en-US';
+          if(voice) utterance.voice = voice;
+          utterance.rate = .9;
+          reading.utterance = utterance;
+          const current = () => activeReading === reading && reading.utterance === utterance;
+          const fail = reason => {
+            if(!current()) return;
+            clearTimeout(reading.timer);
+            const alternate = !retry && speechEngine.getVoices().find(candidate =>
+              candidate.localService && /^en(?:-|$)/i.test(candidate.lang)
+            );
+            if(!alternate || reason === 'not-allowed'){
+              showSilently();
+              return;
             }
-          }, 0);
+            reading.utterance = null;
+            reading.timer = setTimeout(() => {
+              if(activeReading !== reading) return;
+              speechEngine.cancel();
+              submitChunk(alternate, true);
+            }, 0);
+          };
+
+          utterance.onstart = () => {
+            if(!current()) return;
+            clearTimeout(reading.timer);
+            reading.timer = setTimeout(() => fail('timeout'), Math.max(12000, chunk.text.length * 150));
+          };
+          utterance.onerror = event => fail(event.error);
+          utterance.onend = () => {
+            if(!current()) return;
+            clearTimeout(reading.timer);
+            reading.utterance = null;
+            reading.timer = setTimeout(nextChunk, 300);
+          };
+
+          reading.timer = setTimeout(() => fail('timeout'), 3500);
+          try{
+            if(speechEngine.paused) speechEngine.resume();
+            speechEngine.speak(utterance);
+          }catch(error){
+            fail(error.name === 'NotAllowedError' ? 'not-allowed' : 'synthesis-failed');
+          }
         }
 
-        utterance.onstart = () => {
-          if(!isCurrent()){
-            return;
-          }
-
-          clearTimeout(reading.timer);
-          reading.timer = setTimeout(() => failChunk('timeout'), Math.max(15000, chunk.length * 160 + 10000));
-          if(!reportedStart){
-            reportedStart = true;
-            showToast('Reading story…');
-          }
-        };
-
-        utterance.onerror = event => failChunk(event.error);
-        utterance.onend = () => {
-          if(!isCurrent()){
-            return;
-          }
-
-          // Some voices report completion immediately without speaking.
-          if(chunk.length >= 4 && /\p{L}/u.test(chunk) && Date.now() - submittedAt < 150){
-            failChunk('empty-playback');
-            return;
-          }
-
-          clearTimeout(reading.timer);
-          reading.utterance = null;
-          chunkIndex += 1;
-          if(chunkIndex < chunks.length){
-            reading.timer = setTimeout(speakChunk, 0);
-          }else{
-            finishReadAloud(reading);
-          }
-        };
-
-        reading.timer = setTimeout(() => failChunk('timeout'), isAppleMobile ? 11000 : 6500);
-        try{
-          if(speechEngine.paused){
-            speechEngine.resume();
-          }
-          speechEngine.speak(utterance);
-        }catch(error){
-          failChunk(error.name === 'NotAllowedError' ? 'not-allowed' : 'synthesis-failed');
-        }
+        submitChunk();
       }
 
-      showToast('Starting Read Aloud…');
-      if(speechEngine.speaking || speechEngine.pending){
-        speechEngine.cancel();
-      }
-      speakChunk();
+      nextChunk();
     }
 
-    /* =========================================================
-       READ STORY ALOUD
-       Reads all message bubbles in their current page order.
-       ========================================================= */
     document.getElementById('readBtn').onclick = event => {
       if(activeReading){
         stopReadAloud();
         return;
       }
+      if(listening || recognitionStarting){
+        commitRecognitionText(liveTranscriptDraft || finalTranscript);
+      }
+      if(speechFallback.classList.contains('show')){
+        addMessage(speechFallbackInput.value);
+      }
+      stopAllSpeechActivity();
+      closeLibraries();
 
-      stopAllSpeechActivity({
-        preserveFallbackText:false,
-        hidePanels:true
-      });
+      const items = Array.from(contentLayer.children, item => ({
+        item,
+        words:(item.dataset.readableText || '').trim(),
+        x:parseFloat(item.style.left) || 0,
+        y:parseFloat(item.style.top) || 0
+      })).filter(({ words }) => words);
 
-      const readButton = event.currentTarget;
+      items.sort((first, second) =>
+        Number(first.x >= boardWidth / 2) - Number(second.x >= boardWidth / 2)
+        || (Math.abs(first.y - second.y) > 8 ? first.y - second.y : first.x - second.x)
+      );
 
-      const readableItems = [
-        ...contentLayer.querySelectorAll(
-          '.message, .sticker[data-readable-text]'
-        )
-      ]
-      .filter(element =>
-        (element.dataset.readableText || element.textContent).trim()
-      )
-      .sort((first, second) => {
-        const firstLeft = parseFloat(first.style.left) || 0;
-        const secondLeft = parseFloat(second.style.left) || 0;
-        const pageDifference = Math.floor(firstLeft / 800) - Math.floor(secondLeft / 800);
-        if(pageDifference){
-          return pageDifference;
-        }
-
-        const firstTop = parseFloat(first.style.top) || 0;
-        const secondTop = parseFloat(second.style.top) || 0;
-
-        if(Math.abs(firstTop - secondTop) > 8){
-          return firstTop - secondTop;
-        }
-
-        return firstLeft - secondLeft;
-      });
-
-      const storyText = readableItems
-        .map(element =>
-          (
-            element.dataset.readableText ||
-            element.textContent
-          ).trim()
-        )
-        .map(words => /[.!?]$/.test(words) ? words : words + '.')
-        .join(' ');
-
-      if(!storyText){
-        animateButton(readButton, 'warning');
+      const button = event.currentTarget;
+      if(!items.length){
+        animateButton(button, 'warning');
         showToast('Add words to your story first.');
         return;
       }
-
-      animateButton(readButton);
-      speakStoryText(storyText, readButton);
+      animateButton(button);
+      speakStory(items, button);
     };
 
-    /* =========================================================
-       RESET STORY CANVAS
-       Clears:
-       - Drawings
-       - Messages
-       - Stickers
-       - Artboard position
-       ========================================================= */
-    document.getElementById('resetBtn').onclick = event => {
-      animateButton(event.currentTarget, 'warning');
+    const resetBtn = document.getElementById('resetBtn');
+    const eraseDialog = document.getElementById('eraseDialog');
+    const eraseTrack = document.getElementById('eraseTrack');
+    const eraseThumb = document.getElementById('eraseThumb');
+    const eraseCancel = document.getElementById('eraseCancel');
+    const wipeLight = document.getElementById('wipeLight');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let eraseProgress = 0;
+    let erasePointer = null;
 
-      artX = 0;
-      artY = 0;
-      messageCount = 0;
+    function setEraseProgress(progress){
+      eraseProgress = clamp(progress, 0, 1);
+      eraseTrack.style.setProperty('--erase-progress', eraseProgress);
+      eraseThumb.setAttribute('aria-valuenow', String(Math.round(eraseProgress * 100)));
+    }
+
+    function clearArtwork(){
+      contentLayer.replaceChildren();
       layoutSlots.length = 0;
-
-      updateTransform();
+      clearFileUrls();
       sizeScratch();
+    }
 
-      contentLayer.innerHTML = '';
-      hint.style.opacity = '1';
+    function wipeArtboard(){
+      if(wipe) return wipe.done;
+
+      stopAllSpeechActivity();
+      closeLibraries();
+      pointers.clear();
+      interaction = null;
       drawTarget.classList.remove('show');
+      viewport.classList.add('is-wiping');
+      const rect = artboard.getBoundingClientRect();
+      const distance = Math.ceil((viewport.getBoundingClientRect().right - rect.left) / boardScale() + 140);
+      const duration = reducedMotion.matches ? 0 : 730;
+      const options = { duration, easing:'cubic-bezier(.45,.03,.84,.64)', fill:'both' };
+      const move = [
+        { transform:'translateX(0)', opacity:1 },
+        { transform:`translateX(${distance}px)`, opacity:.2 }
+      ];
+      const animations = [
+        contentLayer.animate(move, options),
+        scratch.animate(move, options),
+        wipeLight.animate([
+          { transform:'translateX(-55%)', opacity:0 },
+          { transform:'translateX(-30%)', opacity:.8, offset:.3 },
+          { transform:'translateX(55%)', opacity:0 }
+        ], options)
+      ];
+      const done = Promise.allSettled(animations.map(animation => animation.finished)).then(() => {
+        clearArtwork();
+        animations.forEach(animation => animation.cancel());
+        viewport.classList.remove('is-wiping');
+        wipe = null;
+      });
+      wipe = { animations, done };
+      return done;
+    }
 
-      setMode('pan');
+    function confirmErase(){
+      eraseDialog.close();
+      void wipeArtboard();
+    }
+
+    resetBtn.onclick = () => {
+      if(tourActive || wipe || eraseDialog.open) return;
+      setEraseProgress(0);
+      eraseDialog.showModal();
     };
+
+    eraseCancel.onclick = () => eraseDialog.close();
+    eraseDialog.addEventListener('close', () => {
+      erasePointer = null;
+      setEraseProgress(0);
+    });
+
+    eraseThumb.addEventListener('pointerdown', event => {
+      if(tourActive || erasePointer || event.button !== 0) return;
+      const distance = Math.max(1, eraseTrack.clientWidth - eraseThumb.offsetWidth - 8);
+      erasePointer = { id:event.pointerId, start:event.clientX, progress:eraseProgress, distance };
+      eraseThumb.setPointerCapture(event.pointerId);
+    });
+    eraseThumb.addEventListener('pointermove', event => {
+      if(erasePointer?.id !== event.pointerId) return;
+      setEraseProgress(erasePointer.progress + (event.clientX - erasePointer.start) / erasePointer.distance);
+    });
+    eraseThumb.addEventListener('pointerup', event => {
+      if(erasePointer?.id !== event.pointerId) return;
+      const distance = event.clientX - erasePointer.start;
+      const completed = distance >= erasePointer.distance * .8;
+      erasePointer = null;
+      if(completed) confirmErase();
+      else setEraseProgress(0);
+    });
+    for(const eventName of ['pointercancel', 'lostpointercapture']){
+      eraseThumb.addEventListener(eventName, event => {
+        if(erasePointer?.id !== event.pointerId) return;
+        erasePointer = null;
+        setEraseProgress(0);
+      });
+    }
+
+    eraseThumb.addEventListener('keydown', event => {
+      if(event.key === 'End') setEraseProgress(1);
+      else if(event.key === 'Home') setEraseProgress(0);
+      else if(event.key === 'ArrowRight') setEraseProgress(eraseProgress + .25);
+      else if(event.key === 'ArrowLeft') setEraseProgress(eraseProgress - .25);
+      else if(event.key === 'Enter' || event.key === ' '){
+        if(eraseProgress === 1) confirmErase();
+      }else return;
+      event.preventDefault();
+    });
 
     /* =========================================================
        EXPORT FULL ARTBOARD AS JPG
@@ -1561,8 +1723,6 @@
     }
 
     function renderJPG(){
-      const boardWidth = scratch.width;
-      const boardHeight = scratch.height;
       const frame = 48;
       const footerHeight = 82;
       const spreadWidth = boardWidth + frame * 2;
@@ -1607,17 +1767,45 @@
 
       outputContext.drawImage(scratch, 0, 0);
       const origin = contentLayer.getBoundingClientRect();
-      const scale = artboard.getBoundingClientRect().width / artboard.offsetWidth;
+      const scale = artboard.getBoundingClientRect().width / boardWidth;
       const items = Array.from(contentLayer.children, element => ({
         element,
         style:getComputedStyle(element)
       }));
       items.sort((first, second) => Number(first.style.zIndex) - Number(second.style.zIndex));
       for(const { element, style } of items){
-        if(element.tagName === 'IMG'){
-          drawExportImage(outputContext, element, style);
-        }else{
-          drawExportText(outputContext, element, style, origin, scale);
+        const transform = itemTransforms.get(element);
+        const previousAnimation = element.style.animation;
+        element.style.animation = 'none';
+        outputContext.save();
+        if(transform){
+          const center = itemPosition(element);
+          outputContext.translate(center.x, center.y);
+          outputContext.rotate(transform.angle);
+          outputContext.scale(transform.scale, transform.scale);
+          outputContext.translate(-center.x, -center.y);
+        }
+        try{
+          if(element.tagName === 'IMG'){
+            drawExportImage(outputContext, element, style);
+          }else{
+            if(element.classList.contains('file-sticker')){
+              outputContext.fillStyle = style.backgroundColor;
+              outputContext.fillRect(element.offsetLeft, element.offsetTop, element.offsetWidth, element.offsetHeight);
+            }
+            if(transform){
+              element.style.rotate = 'none';
+              element.style.scale = 'none';
+            }
+            drawExportText(outputContext, element, style, origin, scale);
+          }
+        }finally{
+          if(transform){
+            element.style.rotate = transform.angle + 'rad';
+            element.style.scale = String(transform.scale);
+          }
+          element.style.animation = previousAnimation;
+          outputContext.restore();
         }
       }
       outputContext.restore();
@@ -1713,3 +1901,30 @@
         showToast('The JPG could not be created. Tap Save to try again.');
       });
     };
+
+
+    createTour({
+      viewport, artboard, contentLayer, modeBadge, reducedMotion,
+      addMessage, addSticker, addImageSticker, applyItemTransform, paintStroke,
+      setPaintPanel, setMode, closeLibraries, setEraseProgress, wipeArtboard,
+      pauseWipe(paused){
+        wipe?.animations.forEach(animation => paused ? animation.pause() : animation.play());
+      },
+      setActive(active){
+        tourActive = active;
+      },
+      camera(x, y, ratio){
+        zoom = ratio;
+        const scale = boardScale();
+        artX = (boardWidth / 2 - x) * scale;
+        artY = (boardHeight / 2 - y) * scale;
+        updateTransform();
+      },
+      restoreEditor(){
+        zoom = null;
+        artX = 0;
+        artY = 0;
+        setMode('pan');
+        updateTransform();
+      }
+    });
